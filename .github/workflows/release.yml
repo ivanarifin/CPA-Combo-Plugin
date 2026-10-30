@@ -1,0 +1,64 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  linux-amd64:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Validate release tag
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must be vMAJOR.MINOR.PATCH; got: $VERSION" >&2
+            exit 1
+          fi
+
+      - name: Test and vet
+        run: |
+          go test -race ./...
+          go vet ./...
+
+      - name: Install CGO build dependencies
+        run: sudo apt-get update && sudo apt-get install -y gcc libc6-dev
+
+      - name: Build plugin
+        env:
+          CGO_ENABLED: 1
+          GOOS: linux
+          GOARCH: amd64
+        run: |
+          mkdir -p dist/release
+          go build -trimpath -buildmode=c-shared -o dist/release/cpa-combo-router.so .
+
+      - name: Package release asset
+        env:
+          VERSION: ${{ github.ref_name }}
+        run: |
+          version="${VERSION#v}"
+          package="cpa-combo-router_${version}_linux_amd64.zip"
+          cp LICENSE dist/release/LICENSE
+          (cd dist/release && zip -q "../${package}" cpa-combo-router.so LICENSE)
+          cd dist
+          sha256sum "${package}" > checksums.txt
+
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.ref_name }}
+        run: gh release create "$VERSION" dist/cpa-combo-router_*_linux_amd64.zip dist/checksums.txt --generate-notes
