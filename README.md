@@ -4,7 +4,7 @@ Native CLIProxyAPI plugin that exposes explicitly configured combo model aliases
 
 ## Safety and behavior
 
-- Built against the CPA `v8.0.45` SDK. Linux amd64 is the currently packaged and verified platform; other platforms are not yet included in official release assets.
+- Built against the CPA `v8.0.45` SDK. Official release packages target macOS amd64/arm64, Linux amd64/arm64, and Windows amd64.
 - `model_chains` keys are client-facing aliases; each candidate has a provider-native model ID. The plugin changes the top-level request `model` to that native model on each attempt. `provider` is optional: omit it to let CPA resolve the model's provider from its live catalog and credentials; set it only to explicitly pin a confirmed CPA provider ID.
 - Configure same-protocol candidates unless a separately verified protocol adapter is added. Candidate model APIs/schemas may differ even when the protocol labels are accepted.
 - CPA host callback errors preserve structured HTTP status where available. Fallback is restricted to configured statuses; streaming fallback must not retry after downstream bytes are emitted.
@@ -63,4 +63,4 @@ go test ./...
 go build -buildmode=c-shared -o dist/cpa-combo-router.so .
 ```
 
-This command builds a shared library for the current host. Tagged GitHub releases use `.github/workflows/release.yml` to test, build, and package the supported Linux amd64 artifact with its license and SHA-256 checksum.
+This command builds a shared library for the current host. Tagged GitHub releases use `.github/workflows/release.yml` to test, build, and package native libraries for the five supported store platforms with SHA-256 checksums.

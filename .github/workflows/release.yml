@@ -2,16 +2,19 @@ name: Release
 
 on:
   push:
-    tags:
-      - "v*"
-  workflow_dispatch:
+    branches: [main]
+    tags: ["v*"]
+  pull_request:
 
 permissions:
-  contents: write
+  contents: read
+
+env:
+  PLUGIN_ID: cpa-combo-router
 
 jobs:
-  linux-amd64:
-    runs-on: ubuntu-latest
+  test:
+    runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
 
@@ -21,11 +24,18 @@ jobs:
           cache-dependency-path: go.sum
 
       - name: Validate release tag
+        if: startsWith(github.ref, 'refs/tags/v')
         env:
           VERSION: ${{ github.ref_name }}
         run: |
+          set -euo pipefail
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must be vMAJOR.MINOR.PATCH; got: $VERSION" >&2
+            exit 1
+          fi
+          source_version="$(grep -o 'Version: "[0-9.]*"' main.go | cut -d '"' -f 2)"
+          if [[ "$VERSION" != "v$source_version" ]]; then
+            echo "Release tag $VERSION does not match plugin version $source_version" >&2
             exit 1
           fi
 
@@ -34,31 +44,190 @@ jobs:
           go test -race ./...
           go vet ./...
 
-      - name: Install CGO build dependencies
-        run: sudo apt-get update && sudo apt-get install -y gcc libc6-dev
-
-      - name: Build plugin
+      - name: Native build smoke test
         env:
           CGO_ENABLED: 1
-          GOOS: linux
-          GOARCH: amd64
-        run: |
-          mkdir -p dist/release
-          go build -trimpath -buildmode=c-shared -o dist/release/cpa-combo-router.so .
+        run: go build -trimpath -buildmode=c-shared -o /tmp/cpa-combo-router-ci.so .
 
-      - name: Package release asset
-        env:
-          VERSION: ${{ github.ref_name }}
+  windows-linux:
+    needs: test
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - uses: mlugg/setup-zig@v2
+        with:
+          version: 0.14.1
+
+      - name: Build Linux and Windows shared libraries
         run: |
-          version="${VERSION#v}"
-          package="cpa-combo-router_${version}_linux_amd64.zip"
-          cp LICENSE dist/release/LICENSE
-          (cd dist/release && zip -q "../${package}" cpa-combo-router.so LICENSE)
-          cd dist
-          sha256sum "${package}" > checksums.txt
+          set -euo pipefail
+          while IFS=/ read -r goos goarch target ext; do
+            stage="stage/${goos}-${goarch}"
+            mkdir -p "$stage"
+            library="$PLUGIN_ID.$ext"
+            CGO_ENABLED=1 GOOS="$goos" GOARCH="$goarch" CC="zig cc -target $target" \\
+              go build -trimpath -buildmode=c-shared -o "$stage/$library" .
+          done <<'PLATFORMS'
+          linux/amd64/x86_64-linux-gnu.2.17/so
+          linux/arm64/aarch64-linux-gnu.2.17/so
+          windows/amd64/x86_64-windows-gnu/dll
+          PLATFORMS
+
+      - name: Package Linux and Windows archives
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION_TAG#v}"
+          mkdir -p dist
+          while IFS=/ read -r goos goarch ext; do
+            library="$PLUGIN_ID.$ext"
+            stage="stage/${goos}-${goarch}"
+            (cd "$stage" && zip -q "../../dist/${PLUGIN_ID}_${version}_${goos}_${goarch}.zip" "$library")
+          done <<'PLATFORMS'
+          linux/amd64/so
+          linux/arm64/so
+          windows/amd64/dll
+          PLATFORMS
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: windows-linux
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  darwin:
+    needs: test
+    runs-on: macos-15
+    env:
+      MACOSX_DEPLOYMENT_TARGET: "11.0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+
+      - name: Build Darwin shared libraries
+        run: |
+          set -euo pipefail
+          for goarch in amd64 arm64; do
+            if [[ "$goarch" == amd64 ]]; then arch=x86_64; else arch=arm64; fi
+            stage="stage/darwin-${goarch}"
+            mkdir -p "$stage"
+            CGO_ENABLED=1 GOOS=darwin GOARCH="$goarch" CC="clang -arch $arch" \\
+              go build -trimpath -buildmode=c-shared -o "$stage/$PLUGIN_ID.dylib" .
+          done
+
+      - name: Package Darwin archives
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          version="${VERSION_TAG#v}"
+          mkdir -p dist
+          for goarch in amd64 arm64; do
+            stage="stage/darwin-${goarch}"
+            library="$PLUGIN_ID.dylib"
+            (cd "$stage" && zip -q "../../dist/${PLUGIN_ID}_${version}_darwin_${goarch}.zip" "$library")
+          done
+
+      - uses: actions/upload-artifact@v4
+        if: startsWith(github.ref, 'refs/tags/v')
+        with:
+          name: darwin
+          path: dist/*.zip
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [windows-linux, darwin]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: "*"
+          path: dist
+          merge-multiple: true
+
+      - name: Verify platform archives and generate checksums
+        env:
+          VERSION_TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import hashlib
+          import os
+          import pathlib
+          import struct
+          import zipfile
+
+          version = os.environ["VERSION_TAG"][1:]
+          assets = pathlib.Path("dist")
+          expected = {
+              f"cpa-combo-router_{version}_darwin_amd64.zip": ("cpa-combo-router.dylib", "darwin", "amd64"),
+              f"cpa-combo-router_{version}_darwin_arm64.zip": ("cpa-combo-router.dylib", "darwin", "arm64"),
+              f"cpa-combo-router_{version}_linux_amd64.zip": ("cpa-combo-router.so", "linux", "amd64"),
+              f"cpa-combo-router_{version}_linux_arm64.zip": ("cpa-combo-router.so", "linux", "arm64"),
+              f"cpa-combo-router_{version}_windows_amd64.zip": ("cpa-combo-router.dll", "windows", "amd64"),
+          }
+          actual = {p.name for p in assets.glob("*.zip")}
+          if actual != set(expected):
+              raise SystemExit(f"release archive set mismatch: {sorted(actual)}")
+
+          for archive_name, (library_name, os_name, arch_name) in expected.items():
+              archive_path = assets / archive_name
+              with zipfile.ZipFile(archive_path) as archive:
+                  if archive.testzip() is not None:
+                      raise SystemExit(f"corrupt archive: {archive_name}")
+                  if archive.namelist() != [library_name]:
+                      raise SystemExit(f"expected exactly {library_name} at ZIP root: {archive.namelist()}")
+                  binary = archive.read(library_name)
+                  if os_name == "linux":
+                      machine = struct.unpack_from("<H", binary, 18)[0] if binary[:4] == b"\x7fELF" else None
+                      expected_machine = 62 if arch_name == "amd64" else 183
+                      if machine != expected_machine:
+                          raise SystemExit(f"wrong ELF architecture in {archive_name}: {machine}")
+                  elif os_name == "darwin":
+                      magic = binary[:4]
+                      if magic == b"\xcf\xfa\xed\xfe":
+                          cpu_type = struct.unpack_from("<I", binary, 4)[0]
+                      elif magic == b"\xfe\xed\xfa\xcf":
+                          cpu_type = struct.unpack_from(">I", binary, 4)[0]
+                      else:
+                          cpu_type = None
+                      expected_cpu = 0x01000007 if arch_name == "amd64" else 0x0100000C
+                      if cpu_type != expected_cpu:
+                          raise SystemExit(f"wrong Mach-O architecture in {archive_name}: {cpu_type}")
+                  else:
+                      pe_offset = struct.unpack_from("<I", binary, 60)[0] if binary[:2] == b"MZ" else len(binary)
+                      machine = struct.unpack_from("<H", binary, pe_offset + 4)[0] if binary[pe_offset:pe_offset + 4] == b"PE\x00\x00" else None
+                      if machine != 0x8664:
+                          raise SystemExit(f"wrong PE architecture in {archive_name}: {machine}")
+              print(f"verified {archive_name}")
+
+          with (assets / "checksums.txt").open("w") as checksums:
+              for archive_path in sorted(assets.glob("*.zip")):
+                  digest = hashlib.sha256(archive_path.read_bytes()).hexdigest()
+                  checksums.write(f"{digest}  {archive_path.name}\n")
+          PY
 
       - name: Publish GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           VERSION: ${{ github.ref_name }}
-        run: gh release create "$VERSION" dist/cpa-combo-router_*_linux_amd64.zip dist/checksums.txt --generate-notes
+        run: gh release create "$VERSION" dist/*.zip dist/checksums.txt --repo "$GITHUB_REPOSITORY" --title "$VERSION" --generate-notes --verify-tag
