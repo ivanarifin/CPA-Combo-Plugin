@@ -71,7 +71,7 @@ jobs:
             stage="stage/${goos}-${goarch}"
             mkdir -p "$stage"
             library="$PLUGIN_ID.$ext"
-            CGO_ENABLED=1 GOOS="$goos" GOARCH="$goarch" CC="zig cc -target $target" \\
+            CGO_ENABLED=1 GOOS="$goos" GOARCH="$goarch" CC="zig cc -target $target" \
               go build -trimpath -buildmode=c-shared -o "$stage/$library" .
           done <<'PLATFORMS'
           linux/amd64/x86_64-linux-gnu.2.17/so
@@ -125,7 +125,7 @@ jobs:
             if [[ "$goarch" == amd64 ]]; then arch=x86_64; else arch=arm64; fi
             stage="stage/darwin-${goarch}"
             mkdir -p "$stage"
-            CGO_ENABLED=1 GOOS=darwin GOARCH="$goarch" CC="clang -arch $arch" \\
+            CGO_ENABLED=1 GOOS=darwin GOARCH="$goarch" CC="clang -arch $arch" \
               go build -trimpath -buildmode=c-shared -o "$stage/$PLUGIN_ID.dylib" .
           done
 
