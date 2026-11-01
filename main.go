@@ -259,9 +259,6 @@ func configure(raw []byte) error {
 }
 
 func validateConfig(cfg comboConfig) error {
-	if cfg.Enabled && len(cfg.ModelChains) == 0 {
-		return fmt.Errorf("model_chains must configure at least one combo")
-	}
 	for alias, candidates := range cfg.ModelChains {
 		if strings.TrimSpace(alias) == "" || alias != strings.TrimSpace(alias) || len(candidates) == 0 {
 			return fmt.Errorf("combo alias must be non-empty, trimmed, and have candidates")
@@ -299,7 +296,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.4.3", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.4.4", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }

@@ -460,8 +460,8 @@ func TestValidateConfigBoundaries(t *testing.T) {
 		wantErr bool
 	}{
 		{name: "valid defaults", mutate: func(*comboConfig) {}},
+		{name: "enabled without chains is a valid fresh install", mutate: func(c *comboConfig) { c.ModelChains = nil }},
 		{name: "disabled without chains", mutate: func(c *comboConfig) { c.Enabled = false; c.ModelChains = nil }},
-		{name: "enabled without chains", mutate: func(c *comboConfig) { c.ModelChains = nil }, wantErr: true},
 		{name: "blank alias", mutate: func(c *comboConfig) { c.ModelChains = map[string][]comboCandidate{" ": {{Model: "m"}}} }, wantErr: true},
 		{name: "untrimmed alias", mutate: func(c *comboConfig) { c.ModelChains = map[string][]comboCandidate{" alias ": {{Model: "m"}}} }, wantErr: true},
 		{name: "empty candidates", mutate: func(c *comboConfig) { c.ModelChains = map[string][]comboCandidate{"alias": nil} }, wantErr: true},
@@ -490,6 +490,42 @@ func TestValidateConfigBoundaries(t *testing.T) {
 				t.Fatalf("validateConfig() error = %v, wantErr %v", err, tt.wantErr)
 			}
 		})
+	}
+}
+
+func TestConfigureAllowsFreshStoreInstallWithoutChains(t *testing.T) {
+	raw, err := json.Marshal(lifecycleRequest{ConfigYAML: []byte("enabled: true\npriority: 20\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := configure(raw); err != nil {
+		t.Fatalf("configure fresh store install: %v", err)
+	}
+	if cfg := loadedConfig(); !cfg.Enabled || len(cfg.ModelChains) != 0 {
+		t.Fatalf("fresh install config = %#v", cfg)
+	}
+	registered, err := handleMethod(pluginabi.MethodPluginRegister, raw)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result envelope
+	if err := json.Unmarshal(registered, &result); err != nil || !result.OK {
+		t.Fatalf("fresh install registration = %s err=%v", registered, err)
+	}
+	modelsRaw, err := handleMethod(pluginabi.MethodModelRegister, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var modelsEnvelope envelope
+	if err := json.Unmarshal(modelsRaw, &modelsEnvelope); err != nil || !modelsEnvelope.OK {
+		t.Fatalf("fresh install model registration = %s err=%v", modelsRaw, err)
+	}
+	var models pluginapi.ModelRegistrationResponse
+	if err := json.Unmarshal(modelsEnvelope.Result, &models); err != nil || len(models.Models) != 0 {
+		t.Fatalf("fresh install unexpectedly registered aliases: %#v err=%v", models, err)
+	}
+	if route := routeDecision(loadedConfig(), pluginapi.ModelRouteRequest{RequestedModel: "unconfigured-alias"}); route.Handled {
+		t.Fatalf("fresh install routed an unconfigured model: %#v", route)
 	}
 }
 
