@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"reflect"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -199,7 +200,7 @@ func TestManagementHandleServesSecureDashboardAndRejectsOtherRoutes(t *testing.T
 	if !got.OK || response.StatusCode != http.StatusOK || response.Headers.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("dashboard response = %#v", response)
 	}
-	for _, expected := range []string{"New combo alias", "Add candidate model", "Save combo settings", "Choose model ID", "Enter a custom model ID…", "Current custom model:", "refreshModelsBtn", "clientKeyForm", "clientAPIKey", "CPA client API key", "Forget key", "sessionStorage.setItem(CLIENT_KEY_STORAGE,value)", "base+'/v1/models'", "'Authorization':'Bearer '+clientAPIKey", "payload?.data", "owned_by", "id=\"saveFooter\"", "updatePendingChanges()", "retry_statuses", "/v0/management/plugins/", "/config", pluginID} {
+	for _, expected := range []string{"New combo alias", "Add candidate model", "Save combo settings", "Choose model ID", "Search or type a model ID…", "Search or type a selector model ID…", "function modelID(value)", "model.toLowerCase()==='undefined'", "candidate.model=modelID(candidate.model)", "makeModelPicker(candidate)", "makeModelPicker(strategy.selector,'Selector model ID'", "grid.append(selector,provider.wrap,threshold.wrap)", "createElement('datalist')", "availableModels", "Routing strategy", "round-robin", "Smart selection", "Fusion + judge", "Minimum confidence", "Requests starting at each model", "strategies:savedStrategies", "strategies:normalizeStrategies(strategies,chains)", "delete strategies[selected]", "strategyLabel", "candidateHint", "Fusion panel models", "refreshModelsBtn", "clientKeyForm", "clientAPIKey", "CPA client API key", "Forget key", "sessionStorage.setItem(CLIENT_KEY_STORAGE,value)", "base+'/v1/models'", "'Authorization':'Bearer '+clientAPIKey", "payload?.data", "owned_by", "id=\"saveFooter\"", "updatePendingChanges()", "retry_statuses", "/v0/management/plugins/", "/config", pluginID} {
 		if !strings.Contains(string(response.Body), expected) {
 			t.Errorf("dashboard is missing %q", expected)
 		}
@@ -526,6 +527,20 @@ func TestConfigureAllowsFreshStoreInstallWithoutChains(t *testing.T) {
 	}
 	if route := routeDecision(loadedConfig(), pluginapi.ModelRouteRequest{RequestedModel: "unconfigured-alias"}); route.Handled {
 		t.Fatalf("fresh install routed an unconfigured model: %#v", route)
+	}
+}
+
+func TestConfigureLoadsPerAliasStrategies(t *testing.T) {
+	raw, err := json.Marshal(lifecycleRequest{ConfigYAML: []byte("enabled: true\nmodel_chains:\n  combo:\n    - model: panel-a\n    - model: panel-b\nstrategies:\n  combo:\n    type: fusion\n    judge:\n      provider: judge-provider\n      model: judge-model\n      protocol: openai\n")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := configure(raw); err != nil {
+		t.Fatalf("configure strategy: %v", err)
+	}
+	strategy := loadedConfig().Strategies["combo"]
+	if strategy.Type != "fusion" || strategy.Judge.Provider != "judge-provider" || strategy.Judge.Model != "judge-model" || strategy.Judge.Protocol != "openai" {
+		t.Fatalf("loaded strategy = %#v", strategy)
 	}
 }
 
@@ -1277,6 +1292,199 @@ func TestExecuteFallbackRejectsEmptyCandidatesAndInvalidBody(t *testing.T) {
 		return pluginapi.HostModelExecutionResponse{}, nil
 	}); err == nil || calls != 0 {
 		t.Fatalf("err=%v calls=%d, want validation failure before host call", err, calls)
+	}
+}
+
+func TestResponseTextExtractsResponsesAPIOutput(t *testing.T) {
+	body := []byte(`{"output":[{"type":"reasoning","summary":[]},{"type":"message","content":[{"type":"output_text","text":"first"},{"type":"output_text","text":"second"}]}]}`)
+	if got := responseText(body); got != "first\nsecond" {
+		t.Fatalf("response text = %q", got)
+	}
+	if got := latestUserText([]byte(`{"input":"responses api user prompt"}`)); got != "responses api user prompt" {
+		t.Fatalf("latest user text = %q", got)
+	}
+}
+
+func TestRoundRobinRotatesStartingCandidate(t *testing.T) {
+	resetComboRotations()
+	candidates := []comboCandidate{{Model: "a"}, {Model: "b"}, {Model: "c"}}
+	var starts []string
+	for range 6 {
+		ordered := rotateCandidates("test-round-robin", candidates, 2)
+		starts = append(starts, ordered[0].Model)
+	}
+	if want := []string{"a", "a", "b", "b", "c", "c"}; !reflect.DeepEqual(starts, want) {
+		t.Fatalf("round-robin starts = %v, want %v", starts, want)
+	}
+}
+
+func TestSmartSelectionPrioritizesChoiceAndFailsOpen(t *testing.T) {
+	candidates := []comboCandidate{{Provider: "first", Model: "model-a"}, {Provider: "second", Model: "model-b"}}
+	strategy := comboStrategy{Type: "smart", Selector: comboCandidate{Provider: "selector", Model: "selector-model"}, ConfidenceThreshold: 0.8}
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"write a test"}],"stream":true,"tools":[{}]}`)
+	t.Run("selected model is attempted first", func(t *testing.T) {
+		var calls []string
+		_, err := executeWithStrategy(context.Background(), "smart-alias", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		}, func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			if candidate.Model != "selector-model" || candidate.Provider != "selector" {
+				t.Fatalf("selector candidate = %#v", candidate)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(request, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["stream"] != false || payload["tools"] != nil {
+				t.Fatalf("selector request retained streaming/tool options: %s", request)
+			}
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"{\"choice\":\"second/model-b\",\"confidence\":0.95}"}}]}`)}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(calls, []string{"model-b"}) {
+			t.Fatalf("candidate calls = %v", calls)
+		}
+	})
+	t.Run("low confidence falls back to configured order", func(t *testing.T) {
+		var calls []string
+		_, err := executeWithStrategy(context.Background(), "smart-alias-low", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{}`)}, nil
+		}, func(context.Context, comboCandidate, []byte, string) (pluginapi.HostModelExecutionResponse, error) {
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"{\"choice\":\"second/model-b\",\"confidence\":0.5}"}}]}`)}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(calls, []string{"model-a"}) {
+			t.Fatalf("fallback calls = %v", calls)
+		}
+	})
+}
+
+func TestFusionRunsPanelsInParallelAndUsesJudge(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 2
+	candidates := []comboCandidate{{Provider: "p1", Model: "panel-a"}, {Provider: "p2", Model: "panel-b"}}
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Provider: "judge-provider", Model: "judge-model"}}
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"solve this"},{"role":"assistant","tool_calls":[{"function":{"name":"lookup"}}]},{"role":"tool","content":"tool result"}],"tools":[{}],"stream":true}`)
+	arrived := make(chan struct{}, 2)
+	release := make(chan struct{})
+	var mu sync.Mutex
+	var judgeRequest []byte
+	result := make(chan error, 1)
+	go func() {
+		_, err := executeWithStrategy(context.Background(), "fusion-test", strategy, candidates, cfg, body, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			if candidate.Model == "judge-model" {
+				mu.Lock()
+				judgeRequest = append([]byte(nil), request...)
+				mu.Unlock()
+				return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"judged":true}`)}, nil
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(request, &payload); err != nil {
+				return pluginapi.HostModelExecutionResponse{}, err
+			}
+			if payload["stream"] != false || payload["tools"] != nil {
+				return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("panel options not normalized: %s", request)
+			}
+			arrived <- struct{}{}
+			select {
+			case <-release:
+			case <-time.After(2 * time.Second):
+				return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("panel calls were not released")
+			}
+			content := "answer from " + candidate.Model
+			response, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": content}}}})
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: response}, nil
+		}, nil)
+		result <- err
+	}()
+	for range 2 {
+		select {
+		case <-arrived:
+		case <-time.After(time.Second):
+			close(release)
+			t.Fatal("both panel models were not called concurrently")
+		}
+	}
+	close(release)
+	if err := <-result; err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if len(judgeRequest) == 0 || !strings.Contains(string(judgeRequest), "answer from panel-a") || !strings.Contains(string(judgeRequest), "answer from panel-b") {
+		t.Fatalf("judge request missing panel answers: %s", judgeRequest)
+	}
+	if strings.Contains(string(judgeRequest), `"tools"`) || !strings.Contains(string(judgeRequest), "[Tool result: tool result]") {
+		t.Fatalf("judge request retained tools or lost tool history: %s", judgeRequest)
+	}
+}
+
+func TestFusionReturnsSingleSuccessfulPanelDirectly(t *testing.T) {
+	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
+	calls := 0
+	var callsMu sync.Mutex
+	body, judge, direct, err := prepareFusionPrompt(context.Background(), comboStrategy{Type: "fusion"}, candidates, testConfig(), []byte(`{"model":"combo","messages":[{"role":"user","content":"hi"}]}`), "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		callsMu.Lock()
+		calls++
+		callsMu.Unlock()
+		if candidate.Model == "panel-b" {
+			return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusServiceUnavailable}
+		}
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"only answer"}}]}`)}, nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || direct == nil || direct.Candidate.Model != "panel-a" || string(direct.Response.Body) != `{"choices":[{"message":{"content":"only answer"}}]}` || len(body) != 0 || judge.Model != "" {
+		t.Fatalf("calls=%d body=%s judge=%#v direct=%#v", calls, body, judge, direct)
+	}
+}
+
+func TestFusionSanitizesResponsesAPIAndGeminiToolHistory(t *testing.T) {
+	body := []byte(`{"model":"combo","input":[{"type":"function_call","name":"lookup","arguments":"{}"},{"type":"function_call_output","call_id":"call-1","output":{"value":42}}],"tools":[{}],"parallel_tool_calls":true,"stream":true}`)
+	got, err := fusionPanelBody(body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var payload map[string]any
+	if err := json.Unmarshal(got, &payload); err != nil {
+		t.Fatal(err)
+	}
+	input, ok := payload["input"].([]any)
+	if !ok || len(input) != 2 || payload["tools"] != nil || payload["parallel_tool_calls"] != nil || payload["stream"] != false {
+		t.Fatalf("sanitized Responses request = %s", got)
+	}
+	if !strings.Contains(fmt.Sprint(input[0]), "Tool call") || !strings.Contains(fmt.Sprint(input[1]), `{"value":42}`) {
+		t.Fatalf("Responses tool history lost: %#v", input)
+	}
+	gemini := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]},{"role":"model","parts":[{"functionCall":{"name":"lookup","args":{}}},{"functionResponse":{"name":"lookup","response":{"value":"ok"}}}]}]}`)
+	got, err = fusionPanelBody(gemini)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(got), "functionCall") || strings.Contains(string(got), "functionResponse") || !strings.Contains(string(got), "Tool call") || !strings.Contains(string(got), "Tool result") {
+		t.Fatalf("Gemini tool history not converted: %s", got)
+	}
+}
+
+func TestValidateStrategies(t *testing.T) {
+	cfg := testConfig()
+	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "smart", Selector: comboCandidate{Model: "selector"}, ConfidenceThreshold: 0.75}}
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("valid smart strategy rejected: %v", err)
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "unknown"}
+	if err := validateConfig(cfg); err == nil {
+		t.Fatal("unsupported strategy accepted")
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "smart"}
+	if err := validateConfig(cfg); err == nil {
+		t.Fatal("smart strategy without selector accepted")
 	}
 }
 

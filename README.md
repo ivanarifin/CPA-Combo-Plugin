@@ -1,6 +1,6 @@
 # CPA Combo Router Plugin
 
-Native CLIProxyAPI plugin that exposes explicitly configured combo model aliases and runs an ordered model fallback chain through CPA's host-managed model executor. It uses the same downstream protocol for every candidate; configure model IDs and optional provider pins from the target CPA instance's available catalog.
+Native CLIProxyAPI plugin that exposes explicitly configured combo model aliases and routes requests through CPA's host-managed model executor. Each alias can use ordered fallback, round-robin, smart selection, or fusion with a judge. It uses the same downstream protocol for every candidate; configure model IDs and optional provider pins from the target CPA instance's available catalog.
 
 ## Safety and behavior
 
@@ -10,10 +10,14 @@ Native CLIProxyAPI plugin that exposes explicitly configured combo model aliases
 - CPA host callback errors preserve structured HTTP status where available. Fallback is restricted to configured statuses; streaming fallback must not retry after downstream bytes are emitted.
 
 - Only configured aliases are intercepted; ordinary model IDs pass through untouched.
-- The plugin registers a CPA dashboard menu page, **Combo Router**, with controls to create/rename/delete aliases, add/edit/reorder/remove ordered model candidates, enable/disable routing, and save settings. Candidate models can be selected from one aggregate `/v1/models` request or entered as a custom ID. CPA requires a client API key for this endpoint, so the dashboard provides a separate inline field for it, distinct from the management key. The key is kept in tab-scoped `sessionStorage` so navigation/reloads in the same tab do not prompt again; it is removed when the tab session ends or the user clicks **Forget key**. Configuration reads and writes use CPA's authenticated `/v0/management/plugins/:id/config` endpoint and CPA's remembered dashboard management key if available; otherwise the page prompts for that management key for the page session. It never uses the management key for `/v1/models`.
+- The plugin registers a CPA dashboard menu page, **Combo Router**, with controls to create/rename/delete aliases, add/edit/reorder/remove ordered model candidates, enable/disable routing, and save settings. Candidate models and the Smart selector model can be searched from one shared catalog loaded through the aggregate `/v1/models` request, or entered directly as custom IDs. CPA requires a client API key for this endpoint, so the dashboard provides a separate inline field for it, distinct from the management key. The key is kept in tab-scoped `sessionStorage` so navigation/reloads in the same tab do not prompt again; it is removed when the tab session ends or the user clicks **Forget key**. Configuration reads and writes use CPA's authenticated `/v0/management/plugins/:id/config` endpoint and CPA's remembered dashboard management key if available; otherwise the page prompts for that management key for the page session. It never uses the management key for `/v1/models`.
 - Saving uses CPA's in-process configuration reload. The installed binary registers the dashboard menu/resource route when the plugin is loaded.
 - Enabled aliases are registered with CPA through `model.register` and appear in `/v1/models`.
 - Candidate calls use CPA's host model callback. When `provider` is omitted, CPA resolves the model against its current provider catalog and credentials; an explicit `provider` pins execution when required.
+- Per-alias strategies are configured under `strategies` and can be changed in the Combo Router dashboard. `fallback` tries candidates in order; `round-robin` rotates the starting candidate and then follows the ordered fallback chain; `smart` asks a configured selector model to pick a candidate, then runs ordered fallback; `fusion` calls every panel candidate concurrently and asks a judge to synthesize successful answers.
+- `round-robin` rotation is in-memory per plugin process and resets when the plugin is reconfigured or restarted. `sticky_limit` (default 1) controls requests served from each starting candidate before rotating.
+- Smart selection uses `selector.model`, optionally pins `selector.provider`, and expects JSON with a candidate `choice` and `confidence` from 0 to 1. The selection call has an 8-second timeout; invalid, low-confidence, or failed choices fail open to ordered fallback. `confidence_threshold` defaults to 0.8. Smart selection currently has no session stickiness or capability-based auto-switching.
+- Fusion waits for all panel calls (each capped at 90 seconds; at most 20 panel models per alias), removes tool definitions/tool calls from panel requests while retaining prior tool results as text, and asks the configured `judge` model or the first panel candidate to synthesize successful answers. Panel responses are treated as untrusted input in the judge prompt. Panel failures are tolerated if at least one panel returns extractable text; one successful panel is returned directly without an extra judge call. Fusion uses more tokens and parallel upstream capacity. For streaming requests the panels run non-streaming and the final judge response streams.
 - Retries are explicit, ordered, bounded by `max_attempts`, and limited to configured HTTP statuses (default 403/429/502/503/504).
 - `403` is retryable by default alongside `429` and `5xx`; other 4xx client errors and arbitrary non-status errors do not trigger fallback. A 403 usually signals credentials or model access restrictions, so fallback only helps if another candidate can succeed with different valid access.
 - For streaming, fallback is allowed only before a non-empty downstream chunk was emitted. After output starts, terminate with the original error.
@@ -38,6 +42,17 @@ plugins:
           # Optional explicit pin:
           # - provider: antigravity
           #   model: gemini-flash-latest
+      strategies:
+        combo-example:
+          type: round-robin # fallback | round-robin | smart | fusion
+          sticky_limit: 1
+          # Smart selection:
+          # type: smart
+          # selector: { model: example-selector-model }
+          # confidence_threshold: 0.8
+          # Fusion judge (optional; defaults to first panel model):
+          # type: fusion
+          # judge: { model: example-judge-model }
       retry_statuses: [403, 429, 502, 503, 504]
       max_attempts: 2
 ```
@@ -46,7 +61,7 @@ The plugin config key must match `cpa-combo-router`. Prefer omitting `provider`:
 
 ## Verification status
 
-- `go test -race -cover ./...`, `go vet ./...`, `git diff --check`, and JavaScript syntax validation pass. Dashboard tests assert that the picker uses one aggregate `/v1/models` endpoint and contains no per-auth-file model requests.
+- `go test -race ./...`, `go vet ./...`, `git diff --check`, dashboard JavaScript syntax validation, and a local CGO shared-library build are run for strategy changes. Dashboard tests assert that the picker uses one aggregate `/v1/models` endpoint and contains no per-auth-file model requests.
 - Executor RPC tests use fake host callbacks; a local CPA instance and mock upstream cover fallback behavior, including streaming retry rules.
 - Release packages are built from source with Go `1.26.10` and contain a platform-native CPA plugin library.
 
