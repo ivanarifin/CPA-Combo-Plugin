@@ -171,11 +171,14 @@ type comboConfig struct {
 }
 
 type comboStrategy struct {
-	Type                string         `yaml:"type"`
-	StickyLimit         int            `yaml:"sticky_limit"`
-	Selector            comboCandidate `yaml:"selector"`
-	Judge               comboCandidate `yaml:"judge"`
-	ConfidenceThreshold float64        `yaml:"confidence_threshold"`
+	Type                string           `yaml:"type"`
+	StickyLimit         int              `yaml:"sticky_limit"`
+	Selector            comboCandidate   `yaml:"selector"`
+	Judge               comboCandidate   `yaml:"judge"`
+	ConfidenceThreshold float64          `yaml:"confidence_threshold"`
+	VisionEnabled       bool             `yaml:"vision_enabled"`
+	VisionCandidates    []comboCandidate `yaml:"vision_candidates"`
+	VisionJudge         comboCandidate   `yaml:"vision_judge"`
 }
 
 type comboCandidate struct {
@@ -396,13 +399,8 @@ func validateConfig(cfg comboConfig) error {
 		if strings.TrimSpace(alias) == "" || alias != strings.TrimSpace(alias) || len(candidates) == 0 {
 			return fmt.Errorf("combo alias must be non-empty, trimmed, and have candidates")
 		}
-		for _, candidate := range candidates {
-			if strings.TrimSpace(candidate.Model) == "" || candidate.Model != strings.TrimSpace(candidate.Model) {
-				return fmt.Errorf("combo %q contains a candidate with an empty or untrimmed model", alias)
-			}
-			if candidate.Provider != "" && candidate.Provider != strings.TrimSpace(candidate.Provider) {
-				return fmt.Errorf("combo %q contains an untrimmed provider", alias)
-			}
+		if err := validateCandidatePool(alias, "candidate", candidates); err != nil {
+			return err
 		}
 	}
 	if cfg.MaxAttempts < 1 || cfg.MaxAttempts > 20 {
@@ -427,6 +425,24 @@ func validateConfig(cfg comboConfig) error {
 		}
 		if strategyType == "fusion" && len(cfg.ModelChains[alias]) > 20 {
 			return fmt.Errorf("strategy %q fusion supports at most 20 panel models", alias)
+		}
+		if len(strategy.VisionCandidates) > 0 {
+			if err := validateCandidatePool(alias, "vision candidate", strategy.VisionCandidates); err != nil {
+				return err
+			}
+		}
+		if strategy.VisionEnabled && len(strategy.VisionCandidates) == 0 {
+			return fmt.Errorf("strategy %q enables vision routing but has no vision_candidates", alias)
+		}
+		if strategyType == "fusion" && len(strategy.VisionCandidates) > 20 {
+			return fmt.Errorf("strategy %q fusion supports at most 20 vision panel models", alias)
+		}
+		if strategy.VisionJudge.Model != "" {
+			if err := validateStrategyModel(alias, "vision judge", strategy.VisionJudge); err != nil {
+				return err
+			}
+		} else if strategy.VisionJudge.Provider != "" || strategy.VisionJudge.Protocol != "" {
+			return fmt.Errorf("strategy %q vision judge provider and protocol require a vision judge model", alias)
 		}
 		if strategyType == "smart" {
 			if err := validateStrategyModel(alias, "selector", strategy.Selector); err != nil {
@@ -464,6 +480,18 @@ func normalizedStrategy(value string) string {
 	default:
 		return ""
 	}
+}
+
+func validateCandidatePool(alias, name string, candidates []comboCandidate) error {
+	for _, candidate := range candidates {
+		if strings.TrimSpace(candidate.Model) == "" || candidate.Model != strings.TrimSpace(candidate.Model) {
+			return fmt.Errorf("combo %q contains a %s with an empty or untrimmed model", alias, name)
+		}
+		if candidate.Provider != "" && candidate.Provider != strings.TrimSpace(candidate.Provider) {
+			return fmt.Errorf("combo %q contains a %s with an untrimmed provider", alias, name)
+		}
+	}
+	return nil
 }
 
 func validateStrategyModel(alias, name string, candidate comboCandidate) error {
@@ -740,11 +768,21 @@ func prioritizeCandidate(candidates []comboCandidate, selected comboCandidate) [
 }
 
 func executeWithStrategy(ctx context.Context, alias string, strategy comboStrategy, candidates []comboCandidate, cfg comboConfig, body []byte, callbackID string, call hostModelCall, selectorCall hostModelCall) (pluginapi.HostModelExecutionResponse, error) {
+	candidates, strategy, rotationAlias, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
+	if err != nil {
+		return pluginapi.HostModelExecutionResponse{}, err
+	}
 	switch strategy.Type {
 	case "round-robin":
-		return executeFallback(ctx, rotateCandidates(alias, candidates, strategy.StickyLimit), cfg, body, callbackID, call)
+		if visionRouted {
+			logComboEvent("vision_route", newRequestCorrelationID(), alias, fmt.Sprintf(" strategy=%q candidate_count=%d", strategy.Type, len(candidates)))
+		}
+		return executeFallback(ctx, rotateCandidates(rotationAlias, candidates, strategy.StickyLimit), cfg, body, callbackID, call)
 	case "smart":
 		requestID := newRequestCorrelationID()
+		if visionRouted {
+			logComboEvent("vision_route", requestID, alias, fmt.Sprintf(" strategy=%q candidate_count=%d", strategy.Type, len(candidates)))
+		}
 		ordered := candidates
 		if selected, ok := selectSmartCandidate(ctx, requestID, alias, strategy, candidates, body, callbackID, selectorCall); ok {
 			ordered = prioritizeCandidate(candidates, selected)
@@ -754,6 +792,9 @@ func executeWithStrategy(ctx context.Context, alias string, strategy comboStrate
 		return executeFallback(ctx, ordered, cfg, body, callbackID, observedSmartCall(requestID, alias, call))
 	case "fusion":
 		requestID := newRequestCorrelationID()
+		if visionRouted {
+			logComboEvent("vision_route", requestID, alias, fmt.Sprintf(" strategy=%q candidate_count=%d", strategy.Type, len(candidates)))
+		}
 		start := time.Now()
 		logComboEvent("fusion_start", requestID, alias, fmt.Sprintf(" panel_count=%d streaming=%t", len(candidates), requestHasStream(body)))
 		judgeBody, judge, err := prepareFusionPromptObserved(ctx, requestID, alias, strategy, candidates, body, callbackID, call)
@@ -765,8 +806,106 @@ func executeWithStrategy(ctx context.Context, alias string, strategy comboStrate
 		logComboEvent("fusion_complete", requestID, alias, fmt.Sprintf(" outcome=%s judge_model=%q status_code=%d elapsed_ms=%d", outcomeForError(err), judge.Model, response.StatusCode, time.Since(start).Milliseconds()))
 		return response, err
 	default:
+		if visionRouted {
+			logComboEvent("vision_route", newRequestCorrelationID(), alias, fmt.Sprintf(" strategy=%q candidate_count=%d", strategy.Type, len(candidates)))
+		}
 		return executeFallback(ctx, candidates, cfg, body, callbackID, call)
 	}
+}
+
+func requestCandidatePool(alias string, strategy comboStrategy, candidates []comboCandidate, body []byte) ([]comboCandidate, comboStrategy, string, bool, error) {
+	if !strategy.VisionEnabled || !requestHasImagePayload(body) {
+		return candidates, strategy, alias, false, nil
+	}
+	if len(strategy.VisionCandidates) == 0 {
+		return nil, strategy, alias, false, fmt.Errorf("combo %q received an image request but vision routing has no vision_candidates", alias)
+	}
+	visionCandidates := append([]comboCandidate(nil), strategy.VisionCandidates...)
+	if strategy.Type == "fusion" {
+		strategy.Judge = strategy.VisionJudge
+	}
+	return visionCandidates, strategy, alias + "#vision", true, nil
+}
+
+func requestHasImagePayload(body []byte) bool {
+	var payload any
+	if json.Unmarshal(body, &payload) != nil {
+		return false
+	}
+	return containsImagePayload(payload)
+}
+
+func containsImagePayload(value any) bool {
+	switch item := value.(type) {
+	case []any:
+		for _, child := range item {
+			if containsImagePayload(child) {
+				return true
+			}
+		}
+	case map[string]any:
+		kind, _ := item["type"].(string)
+		if strings.EqualFold(kind, "image") || strings.EqualFold(kind, "input_image") || strings.EqualFold(kind, "image_url") {
+			for _, key := range []string{"source", "url", "image_url", "data", "file_id"} {
+				if hasImageSource(item[key]) {
+					return true
+				}
+			}
+		}
+		for key, child := range item {
+			switch strings.ToLower(key) {
+			case "image_url", "input_image":
+				if hasImageSource(child) {
+					return true
+				}
+			case "inline_data", "inlinedata", "file_data", "filedata":
+				if hasImageData(child) {
+					return true
+				}
+			}
+			if containsImagePayload(child) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func hasImageSource(value any) bool {
+	switch item := value.(type) {
+	case string:
+		return strings.TrimSpace(item) != ""
+	case []any:
+		return len(item) > 0
+	case map[string]any:
+		for key, child := range item {
+			switch strings.ToLower(key) {
+			case "url", "image_url", "data", "file_id", "file_uri":
+				if hasImageSource(child) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+func hasImageData(value any) bool {
+	item, ok := value.(map[string]any)
+	if !ok {
+		return false
+	}
+	var mimeType string
+	var source any
+	for key, child := range item {
+		switch strings.ToLower(key) {
+		case "mime_type", "mimetype", "media_type":
+			mimeType, _ = child.(string)
+		case "data", "fileuri", "file_uri":
+			source = child
+		}
+	}
+	return strings.HasPrefix(strings.ToLower(mimeType), "image/") && hasImageSource(source)
 }
 
 func callHostModelContext(ctx context.Context, call hostModelCall, candidate comboCandidate, body []byte, callbackID string) (pluginapi.HostModelExecutionResponse, error) {
@@ -1416,10 +1555,18 @@ func executeStreamWithHost(raw []byte, hostCall rpcHostCall) ([]byte, error) {
 	}
 	alias := requestedAlias(req.ExecutorRequest, body)
 	strategy := strategyFor(cfg, alias)
+	candidates, strategy, rotationAlias, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
+	if err != nil {
+		status, _ := AsStatusError(err)
+		return errorEnvelope("executor_error", err.Error(), status.Code), nil
+	}
 	if strategy.Type == "round-robin" {
-		candidates = rotateCandidates(alias, candidates, strategy.StickyLimit)
+		candidates = rotateCandidates(rotationAlias, candidates, strategy.StickyLimit)
 	}
 	requestID := newRequestCorrelationID()
+	if visionRouted {
+		logComboEvent("vision_route", requestID, alias, fmt.Sprintf(" strategy=%q candidate_count=%d streaming=true", strategy.Type, len(candidates)))
+	}
 	if strategy.Type == "smart" {
 		if selected, ok := selectSmartCandidate(context.Background(), requestID, alias, strategy, candidates, body, req.HostCallbackID, func(ctx context.Context, candidate comboCandidate, request []byte, callback string) (pluginapi.HostModelExecutionResponse, error) {
 			return executeHostModelWithHost(ctx, req, candidate, request, callback, hostCall)

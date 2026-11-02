@@ -16,18 +16,19 @@ Native CLIProxyAPI plugin that exposes explicitly configured combo model aliases
 - Candidate calls use CPA's host model callback. When `provider` is omitted, CPA resolves the model against its current provider catalog and credentials; an explicit `provider` pins execution when required.
 - Per-alias strategies are configured under `strategies` and can be changed in the Combo Router dashboard. `fallback` tries candidates in order; `round-robin` rotates the starting candidate and then follows the ordered fallback chain; `smart` asks a configured selector model to pick a candidate, then runs ordered fallback; `fusion` calls every panel candidate concurrently and asks a judge to synthesize successful answers.
 - `round-robin` rotation is in-memory per plugin process and resets when the plugin is reconfigured or restarted. `sticky_limit` (default 1) controls requests served from each starting candidate before rotating.
-- Smart selection uses `selector.model`, optionally pins `selector.provider`, and expects JSON with a candidate `choice` and `confidence` from 0 to 1. The selector receives a compact prompt with only the latest user request and candidate list, not the full conversation/tool history. The selection call has a 60-second timeout; invalid, low-confidence, timed-out, or failed choices fail open to ordered fallback. `confidence_threshold` defaults to 0.8. Smart selection currently has no session stickiness or capability-based auto-switching.
+- Smart selection uses `selector.model`, optionally pins `selector.provider`, and expects JSON with a candidate `choice` and `confidence` from 0 to 1. The selector receives a compact prompt with only the latest user request and candidate list, not the full conversation/tool history. The selection call has a 60-second timeout; invalid, low-confidence, timed-out, or failed choices fail open to ordered fallback. `confidence_threshold` defaults to 0.8. Smart selection has no session stickiness or automatic capability discovery; optional image routing uses only the explicitly configured vision pool.
 - Fusion waits for all panel calls (each capped at 90 seconds; at most 20 panel models per alias) and asks the configured `judge` model or the first panel candidate to synthesize successful answers. Panels and judge receive the original tool schemas and conversation history. The judge selects or synthesizes structured tool calls when more work is needed, so tool-enabled agent loops remain in Fusion; the judge's actual tool-call or final-answer response is returned to the client. Panel responses are treated as untrusted data in the judge prompt. Panel failures are tolerated if at least one panel returns extractable text or a structured tool call; the judge still synthesizes the result when only one panel succeeds or only one panel is configured. Fusion uses more tokens and parallel upstream capacity. Panels run non-streaming and the final judge response streams for streaming requests.
+- Optional per-alias image-triggered routing uses `vision_enabled: true` and `vision_candidates`. Requests with structured image payloads use that pool for the whole request; text-only requests continue using `model_chains`. This applies to fallback, round-robin, Smart, and Fusion. Smart's selector still receives only its compact text prompt and selects among the vision candidates. For Fusion image requests, the vision candidates become panels and `vision_judge` overrides the judge; when omitted, the first vision candidate is the judge. Vision routing is disabled by default. Configure candidates that support images using the request's protocol.
 
 ### Selector vs. Judge Model Selection Guidelines
 
-| Capability / Requirement | Smart Selector (`selector.model`)                                                 | Fusion Judge (`judge.model`)                                                               |
-| :----------------------- | :-------------------------------------------------------------------------------- | :----------------------------------------------------------------------------------------- |
-| **Context Window**       | Small (~1k–4k tokens). Receives only the latest user text + candidate list.       | Large (32k–128k+ tokens). Receives full history, tool schemas, and all panel outputs.      |
-| **Vision Support**       | **Not required**. Text is extracted; the selected candidate handles image inputs. | **Required** if input contains images. The judge must inspect visual inputs to synthesize. |
-| **Tool Calling**         | **Not required**. Emits JSON `{"choice": "...", "confidence": 0.0-1.0}`.          | **Required** for tool-enabled tasks. The judge selects or synthesizes the final tool call. |
-| **Latency / Size**       | **Fast & light** (e.g., Flash / Mini). Latency directly delays candidate routing. | **High reasoning** (e.g., Sonnet / Pro). Quality matters more than raw speed.              |
-| **Failure Impact**       | Low risk (fails open to configured ordered fallback).                             | High risk (if the judge fails, the entire fusion request fails).                           |
+| Capability / Requirement | Smart Selector (`selector.model`)                                                                             | Fusion Judge (`judge.model`)                                                                                |
+| :----------------------- | :------------------------------------------------------------------------------------------------------------ | :---------------------------------------------------------------------------------------------------------- |
+| **Context Window**       | Small (~1k–4k tokens). Receives only the latest user text + candidate list.                                   | Large (32k–128k+ tokens). Receives full history, tool schemas, and all panel outputs.                       |
+| **Vision Support**       | **Not required** for the selector. With image routing enabled, selected candidates come from the vision pool. | **Required** for image requests. Image routing uses the vision judge, or the first vision panel by default. |
+| **Tool Calling**         | **Not required**. Emits JSON `{"choice": "...", "confidence": 0.0-1.0}`.                                      | **Required** for tool-enabled tasks. The judge selects or synthesizes the final tool call.                  |
+| **Latency / Size**       | **Fast & light** (e.g., Flash / Mini). Latency directly delays candidate routing.                             | **High reasoning** (e.g., Sonnet / Pro). Quality matters more than raw speed.                               |
+| **Failure Impact**       | Low risk (fails open to configured ordered fallback).                                                         | High risk (if the judge fails, the entire fusion request fails).                                            |
 
 - Retries are explicit, ordered, bounded by `max_attempts`, and limited to configured HTTP statuses (default 403/429/502/503/504).
 - `403` is retryable by default alongside `429` and `5xx`; other 4xx client errors and arbitrary non-status errors do not trigger fallback. A 403 usually signals credentials or model access restrictions, so fallback only helps if another candidate can succeed with different valid access.
@@ -64,6 +65,14 @@ plugins:
           # Fusion judge (optional; defaults to first panel model):
           # type: fusion
           # judge: { model: example-judge-model }
+          # Optional image-triggered whole-request routing, for any strategy:
+          # vision_enabled: true
+          # vision_candidates:
+          #   - model: example-vision-model
+          #   - provider: vision-provider
+          #     model: another-vision-model
+          # Fusion only; defaults to the first vision candidate:
+          # vision_judge: { model: example-vision-judge }
       retry_statuses: [403, 429, 502, 503, 504]
       max_attempts: 2
 ```

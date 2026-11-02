@@ -202,7 +202,7 @@ func TestManagementHandleServesSecureDashboardAndRejectsOtherRoutes(t *testing.T
 	if !got.OK || response.StatusCode != http.StatusOK || response.Headers.Get("Content-Type") != "text/html; charset=utf-8" {
 		t.Fatalf("dashboard response = %#v", response)
 	}
-	for _, expected := range []string{"New combo alias", "Add candidate model", "Save combo settings", "Choose model ID", "Search or type a model ID…", "Search or type a selector model ID…", "function modelID(value)", "model.toLowerCase()==='undefined'", "candidate.model=modelID(candidate.model)", "makeModelPicker(candidate)", "makeModelPicker(strategy.selector,'Selector model ID'", "grid.append(selector,provider.wrap,threshold.wrap)", "createElement('datalist')", "availableModels", "Routing strategy", "round-robin", "Smart selection", "Fusion + judge", "Minimum confidence", "Requests starting at each model", "strategies:savedStrategies", "strategies:normalizeStrategies(strategies,chains)", "delete strategies[selected]", "strategyLabel", "candidateHint", "Fusion panel models", "refreshModelsBtn", "clientKeyForm", "clientAPIKey", "CPA client API key", "Forget key", "sessionStorage.setItem(CLIENT_KEY_STORAGE,value)", "base+'/v1/models'", "'Authorization':'Bearer '+clientAPIKey", "payload?.data", "owned_by", "id=\"saveFooter\"", "updatePendingChanges()", "retry_statuses", "/v0/management/plugins/", "/config", pluginID} {
+	for _, expected := range []string{"New combo alias", "Add candidate model", "Save combo settings", "Choose model ID", "Search or type a model ID…", "Search or type a selector model ID…", "function modelID(value)", "model.toLowerCase()==='undefined'", "candidate.model=modelID(candidate.model)", "makeModelPicker(candidate)", "makeModelPicker(strategy.selector,'Selector model ID'", "grid.append(selector,provider.wrap,threshold.wrap)", "createElement('datalist')", "availableModels", "Routing strategy", "round-robin", "Smart selection", "Fusion + judge", "Minimum confidence", "Requests starting at each model", "strategies:savedStrategies", "strategies:normalizeStrategies(strategies,chains)", "delete strategies[selected]", "strategyLabel", "candidateHint", "Fusion panel models", "Image-triggered vision routing", "Route image requests to vision models", "strategy.vision_candidates", "Vision judge model ID (optional)", "refreshModelsBtn", "clientKeyForm", "clientAPIKey", "CPA client API key", "Forget key", "sessionStorage.setItem(CLIENT_KEY_STORAGE,value)", "base+'/v1/models'", "'Authorization':'Bearer '+clientAPIKey", "payload?.data", "owned_by", "id=\"saveFooter\"", "updatePendingChanges()", "retry_statuses", "/v0/management/plugins/", "/config", pluginID} {
 		if !strings.Contains(string(response.Body), expected) {
 			t.Errorf("dashboard is missing %q", expected)
 		}
@@ -533,7 +533,7 @@ func TestConfigureAllowsFreshStoreInstallWithoutChains(t *testing.T) {
 }
 
 func TestConfigureLoadsPerAliasStrategies(t *testing.T) {
-	raw, err := json.Marshal(lifecycleRequest{ConfigYAML: []byte("enabled: true\nmodel_chains:\n  combo:\n    - model: panel-a\n    - model: panel-b\nstrategies:\n  combo:\n    type: fusion\n    judge:\n      provider: judge-provider\n      model: judge-model\n      protocol: openai\n")})
+	raw, err := json.Marshal(lifecycleRequest{ConfigYAML: []byte("enabled: true\nmodel_chains:\n  combo:\n    - model: panel-a\n    - model: panel-b\nstrategies:\n  combo:\n    type: fusion\n    judge:\n      provider: judge-provider\n      model: judge-model\n      protocol: openai\n    vision_enabled: true\n    vision_candidates:\n      - provider: vision-provider\n        model: vision-panel\n    vision_judge:\n      provider: vision-judge-provider\n      model: vision-judge-model\n")})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -541,7 +541,7 @@ func TestConfigureLoadsPerAliasStrategies(t *testing.T) {
 		t.Fatalf("configure strategy: %v", err)
 	}
 	strategy := loadedConfig().Strategies["combo"]
-	if strategy.Type != "fusion" || strategy.Judge.Provider != "judge-provider" || strategy.Judge.Model != "judge-model" || strategy.Judge.Protocol != "openai" {
+	if strategy.Type != "fusion" || strategy.Judge.Provider != "judge-provider" || strategy.Judge.Model != "judge-model" || strategy.Judge.Protocol != "openai" || !strategy.VisionEnabled || !reflect.DeepEqual(strategy.VisionCandidates, []comboCandidate{{Provider: "vision-provider", Model: "vision-panel"}}) || strategy.VisionJudge.Provider != "vision-judge-provider" || strategy.VisionJudge.Model != "vision-judge-model" {
 		t.Fatalf("loaded strategy = %#v", strategy)
 	}
 }
@@ -1871,6 +1871,220 @@ func TestValidateStrategies(t *testing.T) {
 	cfg.Strategies["combo-coding"] = comboStrategy{Type: "smart"}
 	if err := validateConfig(cfg); err == nil {
 		t.Fatal("smart strategy without selector accepted")
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "fallback", VisionEnabled: true}
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "no vision_candidates") {
+		t.Fatalf("vision routing without candidates error = %v", err)
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "fallback", VisionEnabled: true, VisionCandidates: []comboCandidate{{Model: " vision-model "}}}
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "vision candidate") {
+		t.Fatalf("invalid vision candidate error = %v", err)
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "fusion", VisionEnabled: true, VisionCandidates: []comboCandidate{{Model: "vision-model"}}, VisionJudge: comboCandidate{Provider: "only-provider"}}
+	if err := validateConfig(cfg); err == nil || !strings.Contains(err.Error(), "vision judge") {
+		t.Fatalf("invalid vision judge error = %v", err)
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "fallback", VisionCandidates: []comboCandidate{{Model: "vision-model"}}}
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("disabled vision routing with configured pool rejected: %v", err)
+	}
+}
+
+func TestRequestHasImagePayloadDetectsCommonFormatsAndIgnoresText(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want bool
+	}{
+		{name: "OpenAI image_url object", body: `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"https://example.test/image.png"}}]}]}`, want: true},
+		{name: "OpenAI Responses input_image", body: `{"input":[{"type":"message","role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]}]}`, want: true},
+		{name: "Anthropic image source", body: `{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"iVBORw0KGgo="}}]}]}`, want: true},
+		{name: "Gemini inline_data", body: `{"contents":[{"role":"user","parts":[{"inline_data":{"mime_type":"image/jpeg","data":"/9j/4AAQSkZJRg=="}}]}]}`, want: true},
+		{name: "Gemini fileData", body: `{"contents":[{"role":"user","parts":[{"fileData":{"mimeType":"image/webp","fileUri":"https://example.test/file/1"}}]}]}`, want: true},
+		{name: "text mentioning image", body: `{"messages":[{"role":"user","content":"Please describe the image at https://example.test/image.png"}]}`, want: false},
+		{name: "non-image inline data", body: `{"contents":[{"parts":[{"inline_data":{"mime_type":"application/json","data":"{}"}}]}]}`, want: false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := requestHasImagePayload([]byte(tt.body)); got != tt.want {
+				t.Fatalf("requestHasImagePayload() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestImageTriggeredVisionRoutingAcrossStrategies(t *testing.T) {
+	regular := []comboCandidate{{Model: "text-primary"}, {Model: "text-fallback"}}
+	vision := []comboCandidate{{Model: "vision-primary"}, {Model: "vision-fallback"}}
+	cfg := testConfig()
+	imageBody := []byte(`{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]}]}`)
+	textBody := []byte(`{"messages":[{"role":"user","content":"Inspect the source"}]}`)
+
+	t.Run("fallback selects vision pool and falls through within it", func(t *testing.T) {
+		strategy := comboStrategy{Type: "fallback", VisionEnabled: true, VisionCandidates: vision}
+		var calls []string
+		got, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, imageBody, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			if candidate.Model == "vision-primary" {
+				return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusServiceUnavailable}
+			}
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		}, nil)
+		if err != nil || got.StatusCode != http.StatusOK {
+			t.Fatalf("response=%#v err=%v", got, err)
+		}
+		if !reflect.DeepEqual(calls, []string{"vision-primary", "vision-fallback"}) {
+			t.Fatalf("calls=%v, want ordered vision pool", calls)
+		}
+	})
+
+	t.Run("text request remains on regular pool", func(t *testing.T) {
+		strategy := comboStrategy{Type: "fallback", VisionEnabled: true, VisionCandidates: vision}
+		var calls []string
+		_, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, textBody, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		}, nil)
+		if !reflect.DeepEqual(calls, []string{"text-primary"}) {
+			t.Fatalf("calls=%v err=%v, want only regular primary", calls, err)
+		}
+	})
+
+	t.Run("disabled vision routing leaves image request on regular pool", func(t *testing.T) {
+		strategy := comboStrategy{Type: "fallback", VisionEnabled: false, VisionCandidates: vision}
+		var calls []string
+		_, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, imageBody, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		}, nil)
+		if err != nil || !reflect.DeepEqual(calls, []string{"text-primary"}) {
+			t.Fatalf("calls=%v err=%v, want regular primary while vision routing is disabled", calls, err)
+		}
+	})
+
+	t.Run("round robin rotates within vision pool", func(t *testing.T) {
+		resetComboRotations()
+		strategy := comboStrategy{Type: "round-robin", StickyLimit: 1, VisionEnabled: true, VisionCandidates: vision}
+		var calls [2][]string
+		for i := range calls {
+			_, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, imageBody, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+				calls[i] = append(calls[i], candidate.Model)
+				return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+			}, nil)
+			if err != nil {
+				t.Fatal(err)
+			}
+		}
+		if !reflect.DeepEqual(calls, [2][]string{{"vision-primary"}, {"vision-fallback"}}) {
+			t.Fatalf("round-robin calls=%v", calls)
+		}
+	})
+
+	t.Run("smart chooses only among vision candidates", func(t *testing.T) {
+		strategy := comboStrategy{Type: "smart", Selector: comboCandidate{Model: "selector"}, ConfidenceThreshold: 0.8, VisionEnabled: true, VisionCandidates: vision}
+		var calls []string
+		var selectorRequest []byte
+		_, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, imageBody, "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			calls = append(calls, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		}, func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			if candidate.Model != "selector" {
+				t.Fatalf("selector candidate=%#v", candidate)
+			}
+			selectorRequest = append([]byte(nil), request...)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"{\"choice\":\"/vision-fallback\",\"confidence\":0.95}"}}]}`)}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(string(selectorRequest), "/vision-primary") || !strings.Contains(string(selectorRequest), "/vision-fallback") || strings.Contains(string(selectorRequest), "text-primary") {
+			t.Fatalf("selector did not receive vision pool only: %s", selectorRequest)
+		}
+		if !reflect.DeepEqual(calls, []string{"vision-fallback"}) {
+			t.Fatalf("selected candidate calls=%v", calls)
+		}
+	})
+
+	t.Run("fusion uses vision panels and vision judge with original image", func(t *testing.T) {
+		strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "text-judge"}, VisionEnabled: true, VisionCandidates: vision, VisionJudge: comboCandidate{Model: "vision-judge"}}
+		var panels []string
+		var judgeBody []byte
+		var mu sync.Mutex
+		_, err := executeWithStrategy(context.Background(), "combo-coding", strategy, regular, cfg, imageBody, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			mu.Lock()
+			defer mu.Unlock()
+			if candidate.Model == "vision-judge" {
+				judgeBody = append([]byte(nil), request...)
+				return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"visual synthesis"}}]}`)}, nil
+			}
+			panels = append(panels, candidate.Model)
+			proposal := fmt.Sprintf(`{"choices":[{"message":{"content":"proposal from %s"}}]}`, candidate.Model)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(proposal)}, nil
+		}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !reflect.DeepEqual(map[string]bool{panels[0]: true, panels[1]: true}, map[string]bool{"vision-primary": true, "vision-fallback": true}) {
+			t.Fatalf("fusion panels=%v", panels)
+		}
+		if !requestHasImagePayload(judgeBody) || !strings.Contains(string(judgeBody), "proposal from vision-primary") || !strings.Contains(string(judgeBody), "proposal from vision-fallback") || strings.Contains(string(judgeBody), "text-judge") {
+			t.Fatalf("vision judge request missing original image/panel proposals or used wrong judge: %s", judgeBody)
+		}
+	})
+}
+
+func TestImageTriggeredVisionRoutingInStreamingExecutor(t *testing.T) {
+	cfg := testConfig()
+	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "fallback", VisionEnabled: true, VisionCandidates: []comboCandidate{{Model: "vision-stream"}}}}
+	currentConfig.Store(cfg)
+	body := []byte(`{"model":"combo-coding","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]}],"stream":true}`)
+	request, err := json.Marshal(rpcExecutorRequest{ExecutorRequest: pluginapi.ExecutorRequest{Model: "combo-coding", SourceFormat: "openai", Stream: true, OriginalRequest: body}, StreamID: "vision-stream", HostCallbackID: "callback"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	closed := make(chan struct{})
+	var callMu sync.Mutex
+	var models []string
+	response, err := executeStreamWithHost(request, func(method string, payload any) (json.RawMessage, error) {
+		switch method {
+		case pluginabi.MethodHostModelExecuteStream:
+			hostReq := payload.(hostModelExecutionRequest)
+			callMu.Lock()
+			models = append(models, hostReq.Model)
+			callMu.Unlock()
+			if hostReq.Model != "vision-stream" || !requestHasImagePayload(hostReq.Body) {
+				return nil, fmt.Errorf("stream was not routed with image to vision model: model=%q body=%s", hostReq.Model, hostReq.Body)
+			}
+			return json.Marshal(pluginapi.HostModelStreamResponse{StatusCode: http.StatusOK, StreamID: "upstream-vision"})
+		case pluginabi.MethodHostModelStreamRead:
+			return json.Marshal(pluginapi.HostModelStreamReadResponse{Payload: []byte("data: ok\n\n"), Done: true})
+		case pluginabi.MethodHostStreamEmit:
+			return json.Marshal(map[string]any{})
+		case pluginabi.MethodHostModelStreamClose:
+			return json.Marshal(map[string]any{})
+		case pluginabi.MethodHostStreamClose:
+			close(closed)
+			return json.Marshal(map[string]any{})
+		default:
+			return nil, fmt.Errorf("unexpected host method %q", method)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var responseEnvelope envelope
+	if err := json.Unmarshal(response, &responseEnvelope); err != nil || !responseEnvelope.OK {
+		t.Fatalf("stream start response=%s err=%v", response, err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for image stream completion")
+	}
+	callMu.Lock()
+	defer callMu.Unlock()
+	if !reflect.DeepEqual(models, []string{"vision-stream"}) {
+		t.Fatalf("stream models=%v, want vision model only", models)
 	}
 }
 
