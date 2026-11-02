@@ -517,7 +517,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.5.1", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.5.2", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
