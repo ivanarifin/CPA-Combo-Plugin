@@ -1,10 +1,12 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"reflect"
 	"strings"
@@ -1042,6 +1044,100 @@ func TestExecuteStreamRPCFallbackOnRetryableStartStatusClosesFailedStream(t *tes
 	}
 }
 
+func TestFusionStreamToolRequestUsesJudgeStream(t *testing.T) {
+	cfg := testConfig()
+	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}}
+	currentConfig.Store(cfg)
+	var panelCalls []string
+	var streamCalls []string
+	var emitted []string
+	var judgeRequest []byte
+	var callsMu sync.Mutex
+	closed := make(chan struct{})
+	request, err := json.Marshal(rpcExecutorRequest{
+		ExecutorRequest: pluginapi.ExecutorRequest{
+			Model: "combo-coding", SourceFormat: "openai", Stream: true,
+			OriginalRequest: []byte(`{"model":"combo-coding","messages":[{"role":"user","content":"Inspect and edit the project."}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}],"tool_choice":"auto","stream":true}`),
+		},
+		StreamID: "fusion-agent-stream", HostCallbackID: "callback",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response, err := executeStreamWithHost(request, func(method string, payload any) (json.RawMessage, error) {
+		switch method {
+		case pluginabi.MethodHostModelExecute:
+			hostReq := payload.(hostModelExecutionRequest)
+			callsMu.Lock()
+			panelCalls = append(panelCalls, hostReq.Model)
+			callsMu.Unlock()
+			var body map[string]any
+			if err := json.Unmarshal(hostReq.Body, &body); err != nil {
+				return nil, err
+			}
+			if body["model"] != hostReq.Model || body["tools"] == nil || body["tool_choice"] != "auto" || body["stream"] != false || hostReq.Stream {
+				return nil, fmt.Errorf("fusion panel tool request altered: body=%s stream=%v", hostReq.Body, hostReq.Stream)
+			}
+			if hostReq.Model == "gpt-coder" {
+				return json.Marshal(pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"Need read source","tool_calls":[{"id":"panel-call","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"src/main.go\"}"}}]}}]}`)})
+			}
+			return json.Marshal(pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"Read the requested source file."}}]}`)})
+		case pluginabi.MethodHostModelExecuteStream:
+			hostReq := payload.(hostModelExecutionRequest)
+			callsMu.Lock()
+			streamCalls = append(streamCalls, hostReq.Model)
+			judgeRequest = append([]byte(nil), hostReq.Body...)
+			callsMu.Unlock()
+			var body map[string]any
+			if err := json.Unmarshal(hostReq.Body, &body); err != nil {
+				return nil, err
+			}
+			messages, _ := body["messages"].([]any)
+			messagesJSON, _ := json.Marshal(messages)
+			messagesText := string(messagesJSON)
+			if hostReq.Model != "judge-model" || !hostReq.Stream || body["tools"] == nil || body["stream"] != true || !strings.Contains(messagesText, "read_file") || !strings.Contains(messagesText, "panel-call") || !strings.Contains(messagesText, "tool_calls") {
+				return nil, fmt.Errorf("judge request did not preserve tools and structured proposal: %s", hostReq.Body)
+			}
+			return json.Marshal(pluginapi.HostModelStreamResponse{StatusCode: http.StatusOK, StreamID: "upstream-agent-stream"})
+		case pluginabi.MethodHostModelStreamRead:
+			return json.Marshal(pluginapi.HostModelStreamReadResponse{Payload: []byte("data: tool-call\n\n"), Done: true})
+		case pluginabi.MethodHostModelStreamClose:
+			return json.Marshal(map[string]any{})
+		case pluginabi.MethodHostStreamEmit:
+			callsMu.Lock()
+			emitted = append(emitted, string(payload.(rpcStreamEmitRequest).Payload))
+			callsMu.Unlock()
+			return json.Marshal(map[string]any{})
+		case pluginabi.MethodHostStreamClose:
+			close(closed)
+			return json.Marshal(map[string]any{})
+		default:
+			return nil, fmt.Errorf("unexpected host method %q", method)
+		}
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var responseEnvelope envelope
+	if err := json.Unmarshal(response, &responseEnvelope); err != nil || !responseEnvelope.OK {
+		t.Fatalf("stream start response=%s err=%v", response, err)
+	}
+	select {
+	case <-closed:
+	case <-time.After(2 * time.Second):
+		t.Fatal("timed out waiting for fusion agent stream to close")
+	}
+	callsMu.Lock()
+	panelCallsCopy := append([]string(nil), panelCalls...)
+	streamCallsCopy := append([]string(nil), streamCalls...)
+	judgeRequestCopy := append([]byte(nil), judgeRequest...)
+	emittedCopy := append([]string(nil), emitted...)
+	callsMu.Unlock()
+	if len(panelCallsCopy) != 2 || !containsString(panelCallsCopy, "gpt-coder") || !containsString(panelCallsCopy, "grok-coder") || !reflect.DeepEqual(streamCallsCopy, []string{"judge-model"}) || len(judgeRequestCopy) == 0 || len(emittedCopy) != 1 || emittedCopy[0] != "data: tool-call\n\n" {
+		t.Fatalf("panel calls=%v judge streams=%v judge body=%s emitted=%q", panelCallsCopy, streamCallsCopy, judgeRequestCopy, emittedCopy)
+	}
+}
+
 func TestExecuteStreamRPCDoesNotFallbackAfterDownstreamOutput(t *testing.T) {
 	cfg := testConfig()
 	currentConfig.Store(cfg)
@@ -1296,7 +1392,7 @@ func TestExecuteFallbackRejectsEmptyCandidatesAndInvalidBody(t *testing.T) {
 }
 
 func TestResponseTextExtractsResponsesAPIOutput(t *testing.T) {
-	body := []byte(`{"output":[{"type":"reasoning","summary":[]},{"type":"message","content":[{"type":"output_text","text":"first"},{"type":"output_text","text":"second"}]}]}`)
+	body := []byte(`{"output":[{"type":"reasoning","summary":[{"type":"summary_text","text":"private reasoning"}],"content":[{"type":"reasoning_text","text":"private reasoning"}]},{"type":"message","content":[{"type":"output_text","text":"first"},{"type":"output_text","text":"second"}]}]}`)
 	if got := responseText(body); got != "first\nsecond" {
 		t.Fatalf("response text = %q", got)
 	}
@@ -1315,6 +1411,47 @@ func TestRoundRobinRotatesStartingCandidate(t *testing.T) {
 	}
 	if want := []string{"a", "a", "b", "b", "c", "c"}; !reflect.DeepEqual(starts, want) {
 		t.Fatalf("round-robin starts = %v, want %v", starts, want)
+	}
+}
+
+func TestSmartSelectorTimeoutBudget(t *testing.T) {
+	if smartSelectorTimeout != 60*time.Second {
+		t.Fatalf("smart selector timeout=%s, want 60s", smartSelectorTimeout)
+	}
+}
+
+func TestSmartSelectorBodyUsesCompactSelectionContext(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		key  string
+	}{
+		{name: "chat messages", body: `{"messages":[{"role":"system","content":"old system context"},{"role":"user","content":"old user turn"},{"role":"assistant","content":"old assistant turn"},{"role":"user","content":"latest user request"}],"tools":[{}],"stream":true}`, key: "messages"},
+		{name: "Responses input list", body: `{"input":[{"type":"message","role":"user","content":"latest Responses request"},{"type":"function_call_output","output":"private old tool result"}],"tools":[{}],"stream":true}`, key: "input"},
+		{name: "Gemini contents", body: `{"contents":[{"role":"user","parts":[{"text":"latest Gemini request"}]}],"tools":[{}],"stream":true}`, key: "contents"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := smartSelectorBody([]byte(tt.body), "Choose from model-a and model-b based on latest request: latest user request")
+			if err != nil {
+				t.Fatal(err)
+			}
+			var payload map[string]any
+			if err := json.Unmarshal(got, &payload); err != nil {
+				t.Fatal(err)
+			}
+			if payload["stream"] != false || payload["tools"] != nil || payload[tt.key] == nil {
+				t.Fatalf("unexpected compact selector request: %s", got)
+			}
+			for _, omitted := range []string{"old system context", "old user turn", "old assistant turn", "private old tool result"} {
+				if strings.Contains(string(got), omitted) {
+					t.Fatalf("selector request retained %q: %s", omitted, got)
+				}
+			}
+			if !strings.Contains(string(got), "model-a") || !strings.Contains(string(got), "latest user request") {
+				t.Fatalf("selector request lost decision context: %s", got)
+			}
+		})
 	}
 }
 
@@ -1364,12 +1501,99 @@ func TestSmartSelectionPrioritizesChoiceAndFailsOpen(t *testing.T) {
 	})
 }
 
+func containsString(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
+}
+
+func captureComboLogs(t *testing.T, run func()) string {
+	t.Helper()
+	previous := log.Writer()
+	var output bytes.Buffer
+	log.SetOutput(&output)
+	defer log.SetOutput(previous)
+	run()
+	return output.String()
+}
+
+func TestFusionLogsCorrelatedRedactedPanelAndJudgeEvents(t *testing.T) {
+	requestID := "fusion-correlation-test"
+	alias := "combo-private-alias"
+	candidates := []comboCandidate{{Provider: "provider-a", Model: "panel-a"}, {Provider: "provider-b", Model: "panel-b"}}
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Provider: "judge-provider", Model: "judge-model"}}
+	var promptBody []byte
+	logs := captureComboLogs(t, func() {
+		var err error
+		promptBody, _, err = prepareFusionPromptObserved(context.Background(), requestID, alias, strategy, candidates, []byte(`{"model":"combo","messages":[{"role":"user","content":"private user prompt"}],"tools":[{"type":"function","function":{"name":"private_tool","parameters":{"type":"object"}}}]}`), "callback-secret", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			if candidate.Model == "panel-b" {
+				return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusServiceUnavailable, Message: "private raw upstream failure"}
+			}
+			panelResponse, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": "private panel answer", "tool_calls": []any{map[string]any{"id": "private-call-id", "type": "function", "function": map[string]any{"name": "private_tool", "arguments": `{"secret":"private-argument"}`}}}}}}})
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: panelResponse}, nil
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		judge := strategy.Judge
+		call := observedFusionCall(requestID, alias, judge, func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"ok":true}`)}, nil
+		})
+		if _, err := call(context.Background(), judge, promptBody, "callback-secret"); err != nil {
+			t.Fatal(err)
+		}
+	})
+	for _, want := range []string{"fusion_panel_start", "fusion_panel_result", "fusion_panels_complete", "fusion_judge_start", "fusion_judge_result", requestID, "model=\"panel-a\"", "model=\"panel-b\"", "model=\"judge-model\"", "outcome=success", "status_code=503", "tool_call=true"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("logs missing %q: %s", want, logs)
+		}
+	}
+	for _, secret := range []string{"private user prompt", "private panel answer", "private raw upstream failure", "private-argument", "private-call-id", "callback-secret", "private_tool"} {
+		if strings.Contains(logs, secret) {
+			t.Errorf("logs leaked %q: %s", secret, logs)
+		}
+	}
+}
+
+func TestSmartSelectionLogsSelectedCandidateWithoutPrompt(t *testing.T) {
+	strategy := comboStrategy{Type: "smart", Selector: comboCandidate{Provider: "selector-provider", Model: "selector-model"}, ConfidenceThreshold: 0.8}
+	candidates := []comboCandidate{{Provider: "provider-a", Model: "model-a"}, {Provider: "provider-b", Model: "model-b"}}
+	selectionResponse, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]any{"content": `{"choice":"provider-b/model-b","confidence":0.93}`}}}})
+	if selection, ok := parseSmartSelection(selectionResponse); !ok || selection.Choice != "provider-b/model-b" {
+		t.Fatalf("smart selection fixture=%s parsed=%#v ok=%v", selectionResponse, selection, ok)
+	}
+	logs := captureComboLogs(t, func() {
+		selected, ok := selectSmartCandidate(context.Background(), "smart-correlation-test", "smart-private-alias", strategy, candidates, []byte(`{"messages":[{"role":"user","content":"private selection prompt"}]}`), "callback-secret", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+			if candidate.Model != "selector-model" {
+				t.Fatalf("selector candidate=%#v", candidate)
+			}
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: selectionResponse}, nil
+		})
+		if !ok || selected.Model != "model-b" {
+			t.Fatalf("selection=%#v ok=%v", selected, ok)
+		}
+	})
+	for _, want := range []string{"smart_selector_start", "smart_selector_result", "smart-correlation-test", "outcome=selected", "model=\"model-b\"", "confidence=0.930"} {
+		if !strings.Contains(logs, want) {
+			t.Errorf("logs missing %q: %s", want, logs)
+		}
+	}
+	for _, secret := range []string{"private selection prompt", "callback-secret", "provider-b/model-b"} {
+		if strings.Contains(logs, secret) {
+			t.Errorf("logs leaked %q: %s", secret, logs)
+		}
+	}
+}
+
 func TestFusionRunsPanelsInParallelAndUsesJudge(t *testing.T) {
 	cfg := testConfig()
 	cfg.MaxAttempts = 2
 	candidates := []comboCandidate{{Provider: "p1", Model: "panel-a"}, {Provider: "p2", Model: "panel-b"}}
 	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Provider: "judge-provider", Model: "judge-model"}}
-	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"solve this"},{"role":"assistant","tool_calls":[{"function":{"name":"lookup"}}]},{"role":"tool","content":"tool result"}],"tools":[{}],"stream":true}`)
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"solve this"}],"stream":true}`)
 	arrived := make(chan struct{}, 2)
 	release := make(chan struct{})
 	var mu sync.Mutex
@@ -1419,19 +1643,103 @@ func TestFusionRunsPanelsInParallelAndUsesJudge(t *testing.T) {
 	if len(judgeRequest) == 0 || !strings.Contains(string(judgeRequest), "answer from panel-a") || !strings.Contains(string(judgeRequest), "answer from panel-b") {
 		t.Fatalf("judge request missing panel answers: %s", judgeRequest)
 	}
-	if strings.Contains(string(judgeRequest), `"tools"`) || !strings.Contains(string(judgeRequest), "[Tool result: tool result]") {
-		t.Fatalf("judge request retained tools or lost tool history: %s", judgeRequest)
+	if strings.Contains(string(judgeRequest), `"tools"`) || !strings.Contains(string(judgeRequest), "If no tool call is needed, output only the final user-facing answer") {
+		t.Fatalf("judge request retained tool definitions or lacks final-only instruction: %s", judgeRequest)
 	}
 }
 
-func TestFusionReturnsSingleSuccessfulPanelDirectly(t *testing.T) {
+func TestFusionToolEnabledRequestRunsPanelsAndJudge(t *testing.T) {
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
 	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
-	calls := 0
+	body := []byte(`{"model":"combo-coding","messages":[{"role":"user","content":"Inspect this project and implement the requested change."}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}],"tool_choice":"auto","stream":true}`)
+	var panelCalls, judgeCalls []string
 	var callsMu sync.Mutex
-	body, judge, direct, err := prepareFusionPrompt(context.Background(), comboStrategy{Type: "fusion"}, candidates, testConfig(), []byte(`{"model":"combo","messages":[{"role":"user","content":"hi"}]}`), "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+	response, err := executeWithStrategy(context.Background(), "fusion-tools", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		var payload map[string]any
+		if err := json.Unmarshal(request, &payload); err != nil {
+			return pluginapi.HostModelExecutionResponse{}, err
+		}
+		if payload["model"] != candidate.Model || payload["tools"] == nil || payload["tool_choice"] != "auto" || payload["stream"] != false {
+			return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("Fusion panel request lost tool options: %s", request)
+		}
+		if candidate.Model == "judge-model" {
+			callsMu.Lock()
+			judgeCalls = append(judgeCalls, candidate.Model)
+			callsMu.Unlock()
+			messages, _ := payload["messages"].([]any)
+			if !strings.Contains(fmt.Sprint(messages), "read_file") || !strings.Contains(fmt.Sprint(messages), `"tool_calls"`) {
+				return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("judge lost tool schema or panel proposal: %s", request)
+			}
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"","tool_calls":[{"id":"judge-call","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"src/main.go\"}"}}]},"finish_reason":"tool_calls"}]}`)}, nil
+		}
 		callsMu.Lock()
-		calls++
+		panelCalls = append(panelCalls, candidate.Model)
 		callsMu.Unlock()
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"Need inspect source","tool_calls":[{"id":"panel-call","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"src/main.go\"}"}}]}}]}`)}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var result map[string]any
+	if err := json.Unmarshal(response.Body, &result); err != nil {
+		t.Fatal(err)
+	}
+	choices, _ := result["choices"].([]any)
+	choice, _ := choices[0].(map[string]any)
+	message, _ := choice["message"].(map[string]any)
+	callsMu.Lock()
+	panelCallsCopy := append([]string(nil), panelCalls...)
+	judgeCallsCopy := append([]string(nil), judgeCalls...)
+	callsMu.Unlock()
+	if len(panelCallsCopy) != 2 || !containsString(panelCallsCopy, "panel-a") || !containsString(panelCallsCopy, "panel-b") || !reflect.DeepEqual(judgeCallsCopy, []string{"judge-model"}) || message["tool_calls"] == nil || choice["finish_reason"] != "tool_calls" {
+		t.Fatalf("panel calls=%v judge calls=%v response=%s", panelCallsCopy, judgeCallsCopy, response.Body)
+	}
+}
+
+func TestFusionToolCallHistoryRunsThroughPanelsAndJudge(t *testing.T) {
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
+	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
+	body := []byte(`{"model":"combo-coding","messages":[{"role":"user","content":"continue"},{"role":"assistant","content":"I’ll inspect the file.","tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call-1","content":"source text"}],"tools":[{"type":"function","function":{"name":"read_file"}}]}`)
+	var panelCalls, judgeCalls []string
+	var callsMu sync.Mutex
+	_, err := executeWithStrategy(context.Background(), "fusion-tool-history", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		var payload map[string]any
+		if err := json.Unmarshal(request, &payload); err != nil {
+			return pluginapi.HostModelExecutionResponse{}, err
+		}
+		messages, _ := payload["messages"].([]any)
+		assistant, _ := messages[1].(map[string]any)
+		toolResult, _ := messages[2].(map[string]any)
+		if payload["model"] != candidate.Model || len(messages) < 3 || assistant["tool_calls"] == nil || toolResult["role"] != "tool" || toolResult["content"] != "source text" {
+			return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("tool history not passed to model=%s: %s", candidate.Model, request)
+		}
+		if candidate.Model == "judge-model" {
+			callsMu.Lock()
+			judgeCalls = append(judgeCalls, candidate.Model)
+			callsMu.Unlock()
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"done"}}]}`)}, nil
+		}
+		callsMu.Lock()
+		panelCalls = append(panelCalls, candidate.Model)
+		callsMu.Unlock()
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"continue"}}]}`)}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	callsMu.Lock()
+	panelCallsCopy := append([]string(nil), panelCalls...)
+	judgeCallsCopy := append([]string(nil), judgeCalls...)
+	callsMu.Unlock()
+	if len(panelCallsCopy) != 2 || !containsString(panelCallsCopy, "panel-a") || !containsString(panelCallsCopy, "panel-b") || !reflect.DeepEqual(judgeCallsCopy, []string{"judge-model"}) {
+		t.Fatalf("panel calls=%v judge calls=%v", panelCallsCopy, judgeCallsCopy)
+	}
+}
+
+func TestFusionUsesJudgeWhenOnlyOnePanelSucceeds(t *testing.T) {
+	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
+	body, judge, err := prepareFusionPrompt(context.Background(), strategy, candidates, []byte(`{"model":"combo","messages":[{"role":"user","content":"hi"}]}`), "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
 		if candidate.Model == "panel-b" {
 			return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusServiceUnavailable}
 		}
@@ -1440,13 +1748,85 @@ func TestFusionReturnsSingleSuccessfulPanelDirectly(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if calls != 2 || direct == nil || direct.Candidate.Model != "panel-a" || string(direct.Response.Body) != `{"choices":[{"message":{"content":"only answer"}}]}` || len(body) != 0 || judge.Model != "" {
-		t.Fatalf("calls=%d body=%s judge=%#v direct=%#v", calls, body, judge, direct)
+	var judgePayload map[string]any
+	if err := json.Unmarshal(body, &judgePayload); err != nil {
+		t.Fatal(err)
+	}
+	messages, _ := judgePayload["messages"].([]any)
+	judgeCalled := len(messages) > 1 && strings.Contains(fmt.Sprint(messages[len(messages)-1]), "only answer")
+	if !judgeCalled || judge.Model != "judge-model" {
+		t.Fatalf("single successful panel did not produce a judge request: body=%s judge=%#v", body, judge)
 	}
 }
 
-func TestFusionSanitizesResponsesAPIAndGeminiToolHistory(t *testing.T) {
-	body := []byte(`{"model":"combo","input":[{"type":"function_call","name":"lookup","arguments":"{}"},{"type":"function_call_output","call_id":"call-1","output":{"value":42}}],"tools":[{}],"parallel_tool_calls":true,"stream":true}`)
+func TestFusionUsesJudgeWithSingleConfiguredPanel(t *testing.T) {
+	candidates := []comboCandidate{{Model: "panel-a"}}
+	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
+	calls := 0
+	got, err := executeWithStrategy(context.Background(), "fusion-single", strategy, candidates, testConfig(), []byte(`{"model":"combo","messages":[{"role":"user","content":"hi"}]}`), "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		calls++
+		var payload map[string]any
+		if err := json.Unmarshal(request, &payload); err != nil {
+			return pluginapi.HostModelExecutionResponse{}, err
+		}
+		if candidate.Model == "panel-a" {
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"panel answer"}}]}`)}, nil
+		}
+		messages, _ := payload["messages"].([]any)
+		if candidate.Model != "judge-model" || len(messages) < 2 || !strings.Contains(fmt.Sprint(messages[len(messages)-1]), "panel answer") {
+			return pluginapi.HostModelExecutionResponse{}, fmt.Errorf("incorrect judge request: model=%s body=%s", candidate.Model, request)
+		}
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"judged":true}`)}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if calls != 2 || string(got.Body) != `{"judged":true}` {
+		t.Fatalf("calls=%d response=%s", calls, got.Body)
+	}
+}
+
+func TestFusionPanelAnswerPreservesNativeToolCallProposals(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+		want []string
+	}{
+		{
+			name: "OpenAI chat completions",
+			body: `{"choices":[{"message":{"content":"Need inspect source","tool_calls":[{"id":"call-openai","type":"function","function":{"name":"read_file","arguments":"{\"path\":\"src/main.go\"}"}}]}}]}`,
+			want: []string{"call-openai", "read_file", "src/main.go", "tool_calls"},
+		},
+		{
+			name: "Responses API",
+			body: `{"output":[{"type":"function_call","call_id":"call-responses","name":"read_file","arguments":"{\"path\":\"src/main.go\"}"}]}`,
+			want: []string{"call-responses", "read_file", "src/main.go", "tool_calls"},
+		},
+		{
+			name: "Gemini",
+			body: `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"read_file","args":{"path":"src/main.go"}}}]}}]}`,
+			want: []string{"read_file", "src/main.go", "tool_calls"},
+		},
+		{
+			name: "Anthropic",
+			body: `{"content":[{"type":"tool_use","id":"call-anthropic","name":"read_file","input":{"path":"src/main.go"}}]}`,
+			want: []string{"call-anthropic", "read_file", "src/main.go", "tool_calls"},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := fusionPanelAnswer([]byte(tt.body))
+			for _, part := range tt.want {
+				if !strings.Contains(got, part) {
+					t.Fatalf("panel proposal %q missing %q", got, part)
+				}
+			}
+		})
+	}
+}
+
+func TestFusionPreservesResponsesAPIAndGeminiToolHistory(t *testing.T) {
+	body := []byte(`{"model":"combo","input":[{"type":"message","role":"assistant","content":"Earlier relevant context."},{"type":"message","role":"user","content":"question"},{"type":"message","role":"assistant","content":"I'll compare the results using lookup now."},{"type":"message","role":"assistant","content":"Looking up the answer."},{"type":"function_call","name":"lookup","arguments":"{}"},{"type":"function_call_output","call_id":"call-1","output":{"value":42}}],"tools":[{}],"parallel_tool_calls":true,"stream":true}`)
 	got, err := fusionPanelBody(body)
 	if err != nil {
 		t.Fatal(err)
@@ -1456,19 +1836,25 @@ func TestFusionSanitizesResponsesAPIAndGeminiToolHistory(t *testing.T) {
 		t.Fatal(err)
 	}
 	input, ok := payload["input"].([]any)
-	if !ok || len(input) != 2 || payload["tools"] != nil || payload["parallel_tool_calls"] != nil || payload["stream"] != false {
-		t.Fatalf("sanitized Responses request = %s", got)
+	if !ok || len(input) != 6 || payload["tools"] == nil || payload["parallel_tool_calls"] != true || payload["stream"] != false {
+		t.Fatalf("Fusion did not preserve the Responses tool request: %s", got)
 	}
-	if !strings.Contains(fmt.Sprint(input[0]), "Tool call") || !strings.Contains(fmt.Sprint(input[1]), `{"value":42}`) {
-		t.Fatalf("Responses tool history lost: %#v", input)
+	inputJSON, _ := json.Marshal(input)
+	inputText := string(inputJSON)
+	if !strings.Contains(inputText, "Earlier relevant context.") || !strings.Contains(inputText, "question") || !strings.Contains(inputText, `{"value":42}`) || !strings.Contains(inputText, "I'll compare") || !strings.Contains(inputText, "Looking up the answer.") || !strings.Contains(inputText, "function_call") || !strings.Contains(inputText, "lookup") {
+		t.Fatalf("Responses tool history or preamble was lost: %#v", input)
 	}
 	gemini := []byte(`{"contents":[{"role":"user","parts":[{"text":"hi"}]},{"role":"model","parts":[{"functionCall":{"name":"lookup","args":{}}},{"functionResponse":{"name":"lookup","response":{"value":"ok"}}}]}]}`)
 	got, err = fusionPanelBody(gemini)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if strings.Contains(string(got), "functionCall") || strings.Contains(string(got), "functionResponse") || !strings.Contains(string(got), "Tool call") || !strings.Contains(string(got), "Tool result") {
-		t.Fatalf("Gemini tool history not converted: %s", got)
+	if !strings.Contains(string(got), `"functionCall"`) || !strings.Contains(string(got), `"functionResponse"`) || !strings.Contains(string(got), `"name":"lookup"`) || !strings.Contains(string(got), `"stream":false`) {
+		t.Fatalf("Gemini tool history was not preserved for Fusion: %s", got)
+	}
+	thoughtResponse := []byte(`{"candidates":[{"content":{"parts":[{"text":"private chain of thought","thought":true},{"text":"user-facing answer"}]}}]}`)
+	if got := responseText(thoughtResponse); got != "user-facing answer" {
+		t.Fatalf("Gemini response text included internal thoughts: %q", got)
 	}
 }
 
