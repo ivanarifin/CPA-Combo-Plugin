@@ -7,41 +7,298 @@ const comboDashboardHTML = `<!doctype html>
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CPA Combo Router</title>
 <style>
-:root{color-scheme:dark;--bg:#101411;--panel:#171d19;--panel2:#1d2520;--line:#303a33;--text:#edf3ed;--muted:#9aa99d;--lime:#b8f36b;--lime-dark:#8cc942;--red:#ff8e7d;--blue:#a5c9fa;font:15px/1.5 ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif}
-*{box-sizing:border-box}body{margin:0;background:radial-gradient(ellipse at 80% -10%,#2d422b 0,transparent 38%),linear-gradient(145deg,#101411,#121813 55%,#111713);color:var(--text);min-height:100vh}button,input,select{font:inherit}button{cursor:pointer}.shell{max-width:1160px;margin:0 auto;padding:32px 28px 56px}.top{display:flex;align-items:center;justify-content:space-between;gap:16px;padding-bottom:28px;border-bottom:1px solid var(--line)}.brand{display:flex;align-items:center;gap:14px}.mark{width:42px;height:42px;border-radius:13px;background:var(--lime);color:#17200f;display:grid;place-items:center;font-weight:900;font-size:21px;box-shadow:0 0 34px #b8f36b30}.eyebrow,.kicker{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--muted);font-weight:750}.brand h1{font-size:18px;letter-spacing:-.035em;margin:2px 0 0}.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}.dot{width:8px;height:8px;border-radius:50%;background:var(--lime);box-shadow:0 0 12px #b8f36b70}.layout{display:grid;grid-template-columns:280px minmax(0,1fr);gap:22px;padding-top:24px}.rail,.work{min-width:0}.panel{border:1px solid var(--line);background:linear-gradient(155deg,#1a211c,#151b17);border-radius:17px;box-shadow:0 14px 45px #0002}.rail-head{padding:18px 18px 14px;display:flex;align-items:center;justify-content:space-between}.rail-head h2{font-size:12px;letter-spacing:.12em;text-transform:uppercase;margin:0;color:var(--muted)}.count{font:12px ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--lime)}.alias-list{display:grid;gap:7px;padding:0 9px 11px}.alias-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:7px;padding:0 9px 14px}.alias-form input{min-width:0;width:100%;border:1px solid #344039;border-radius:8px;background:#0f1511;color:var(--text);outline:none;padding:8px 9px;font-size:12px}.alias-form input:focus{border-color:var(--lime-dark);box-shadow:0 0 0 3px #b8f36b15}.alias-form .btn{padding:7px 9px}.alias{display:flex;align-items:center;gap:9px;width:100%;border:1px solid transparent;background:transparent;color:var(--text);border-radius:11px;text-align:left;padding:12px 11px}.alias:hover{background:#ffffff08}.alias.active{background:#b8f36b12;border-color:#b8f36b38}.alias-led{width:7px;height:7px;background:#66746a;border-radius:50%;flex:none}.alias.active .alias-led{background:var(--lime);box-shadow:0 0 10px #b8f36b80}.alias-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:13px ui-monospace,SFMono-Regular,Menlo,monospace}.alias-count{margin-left:auto;color:var(--muted);font-size:11px}.rail-foot{border-top:1px solid var(--line);padding:12px 17px 16px;color:var(--muted);font-size:11px}.work{display:grid;align-content:start;gap:15px}.hero{padding:23px 25px 20px;position:relative;overflow:hidden}.hero:after{content:"";position:absolute;width:190px;height:190px;right:-52px;top:-93px;border:1px solid #b8f36b22;border-radius:50%;box-shadow:0 0 0 20px #b8f36b08,0 0 0 42px #b8f36b05;pointer-events:none}.hero-line{display:flex;align-items:flex-start;justify-content:space-between;gap:18px}.hero h2{font-size:24px;letter-spacing:-.05em;line-height:1.16;margin:8px 0 7px}.hero p{margin:0;color:var(--muted);font-size:13px;max-width:560px}.pill{border:1px solid #b8f36b38;color:var(--lime);background:#b8f36b0c;border-radius:99px;padding:6px 10px;font-size:10px;letter-spacing:.1em;text-transform:uppercase;font-weight:750;white-space:nowrap}.toggle{display:flex;align-items:center;gap:10px;font-size:12px;color:var(--muted);margin-top:18px}.toggle input{accent-color:var(--lime);width:16px;height:16px}.toolbar{display:flex;justify-content:space-between;align-items:center;gap:10px}.toolbar .kicker{padding-left:4px}.model-status{font-size:10px;color:var(--muted);white-space:nowrap}.catalog-access{padding:13px 16px;display:grid;gap:8px}.catalog-key-head{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}.catalog-key-head label{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);font-weight:750}.catalog-key-head span,.catalog-key-message{font-size:10px;color:var(--muted)}.catalog-key-controls{display:grid;grid-template-columns:minmax(0,1fr) auto auto;gap:8px}.catalog-key-controls input{width:100%;min-width:0;border:1px solid #344039;border-radius:8px;background:#0f1511;color:var(--text);outline:none;padding:8px 10px;font-size:13px}.catalog-key-controls input:focus{border-color:var(--lime-dark);box-shadow:0 0 0 3px #b8f36b15}.catalog-key-message.error{color:var(--red)}.btn{border:1px solid var(--line);border-radius:9px;background:#232c26;color:var(--text);padding:8px 12px;font-size:12px;font-weight:650;transition:transform .15s,border-color .15s,background .15s}.btn:hover{border-color:#63756a;background:#2a352d;transform:translateY(-1px)}.btn.primary{background:var(--lime);color:#18210f;border-color:var(--lime);font-weight:800}.btn.primary:hover{background:#c9ff83}.btn.subtle{background:transparent}.btn.danger{color:var(--red)}.btn:disabled{opacity:.5;cursor:not-allowed;transform:none}.chain{padding:19px}.retry-panel{padding:16px 19px}.retry-grid{display:grid;grid-template-columns:minmax(0,1fr) 150px;gap:12px;align-items:end}.retry-help{font-size:11px;color:var(--muted);margin:6px 0 0}.retry-title{font-size:12px;font-weight:750;margin:0 0 12px}.chain-top{display:flex;justify-content:space-between;align-items:center;gap:10px;margin-bottom:14px}.chain-top h3{margin:0;font-size:14px;letter-spacing:-.02em}.chain-top span{color:var(--muted);font:11px ui-monospace,SFMono-Regular,Menlo,monospace}.candidate-list{display:grid;gap:9px}.candidate{display:grid;grid-template-columns:29px minmax(0,1fr) auto;gap:11px;align-items:start;border:1px solid var(--line);border-radius:12px;background:#1117138c;padding:12px}.order{width:27px;height:27px;display:grid;place-items:center;border-radius:8px;color:var(--lime);background:#b8f36b13;font:11px ui-monospace,SFMono-Regular,Menlo,monospace;margin-top:2px}.fields{display:grid;gap:9px;min-width:0}.field{display:grid;gap:5px}.field label{font-size:10px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:750}.field input,.field select,.key-input{width:100%;border:1px solid #344039;border-radius:8px;background:#0f1511;color:var(--text);outline:none;padding:9px 10px;font-size:13px;min-width:0}.field input:focus,.field select:focus,.key-input:focus{border-color:var(--lime-dark);box-shadow:0 0 0 3px #b8f36b15}.advanced{display:grid;grid-template-columns:1fr 1fr;gap:9px}.row-actions{display:grid;gap:5px}.icon-btn{width:29px;height:27px;border:1px solid var(--line);background:#1e2721;color:var(--muted);border-radius:7px;font-size:13px}.icon-btn:hover{color:var(--text);border-color:#75867a}.icon-btn.remove:hover{color:var(--red);border-color:#8b4e47}.add-candidate{margin-top:11px;width:100%;border-style:dashed;color:var(--muted)}.empty{padding:37px 22px;text-align:center;border:1px dashed #48544b;border-radius:13px;color:var(--muted);background:#11171363}.empty strong{display:block;color:var(--text);font-size:14px;margin-bottom:5px}.empty p{font-size:12px;margin:0 auto 14px;max-width:310px}.note{display:flex;gap:10px;padding:12px 14px;border:1px solid #354537;border-radius:11px;background:#b8f36b09;color:var(--muted);font-size:11px}.note b{color:var(--lime);font-size:13px}.bottom{position:sticky;bottom:12px;display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 14px;background:#171e19f2;backdrop-filter:blur(12px);border:1px solid #3c493f;border-radius:13px;box-shadow:0 12px 40px #0005}.save-copy{font-size:11px;color:var(--muted)}.save-copy strong{color:var(--text);font-weight:650}.save-actions{display:flex;gap:8px;align-items:center}.message{min-height:18px;color:var(--muted);font-size:11px;padding:0 4px}.message.error{color:var(--red)}.message.success{color:var(--lime)}.gate{display:none;position:fixed;inset:0;z-index:5;background:#090d0bd9;backdrop-filter:blur(8px);padding:20px;place-items:center}.gate.open{display:grid}.gate-card{width:min(100%,420px);padding:24px}.gate-card h2{margin:6px 0;font-size:21px;letter-spacing:-.04em}.gate-card p{color:var(--muted);font-size:12px;margin:0 0 15px}.gate-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:12px}.key-input{margin-top:3px}.loading{color:var(--muted);padding:26px;text-align:center}.hide{display:none!important}
-@media(max-width:760px){.shell{padding:19px 14px 38px}.layout{grid-template-columns:1fr;gap:14px}.rail{order:2}.work{order:1}.alias-list{grid-template-columns:repeat(auto-fill,minmax(145px,1fr))}.rail-foot{display:none}.hero h2{font-size:21px}.candidate{grid-template-columns:25px minmax(0,1fr) auto;padding:10px;gap:8px}.advanced{grid-template-columns:1fr}.retry-grid{grid-template-columns:1fr}.catalog-key-controls{grid-template-columns:minmax(0,1fr) auto}.catalog-key-controls input{grid-column:1/-1}.bottom{align-items:flex-start;flex-direction:column}.save-actions{width:100%;justify-content:flex-end}.toolbar{align-items:flex-start;flex-direction:column}.toolbar .save-actions{justify-content:flex-start;flex-wrap:wrap}.top{padding-bottom:18px}.shell{padding-top:18px}}
-@media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
+:root{
+  color-scheme:dark;
+  --bg:#0e120f;--panel:#161c18;--panel-2:#1b231e;--inset:#0f1411;
+  --line:#2c362f;--line-strong:#425046;
+  --text:#edf3ed;--muted:#a6b4a9;--faint:#76857a;
+  --lime:#b8f36b;--lime-dim:#8cc942;--lime-wash:#b8f36b14;
+  --red:#ff9c8c;--red-wash:#ff8e7d14;--amber:#f2c66d;--amber-wash:#f2c66d12;
+  --mono:ui-monospace,"SF Mono",SFMono-Regular,"JetBrains Mono",Menlo,Consolas,monospace;
+  --sans:ui-sans-serif,system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  font:14px/1.5 var(--sans);
+}
+*{box-sizing:border-box}
+html,body{margin:0;min-height:100%}
+body{
+  color:var(--text);
+  background:
+    linear-gradient(#ffffff05 1px,transparent 1px) 0 0/100% 28px,
+    linear-gradient(90deg,#ffffff05 1px,transparent 1px) 0 0/28px 100%,
+    radial-gradient(ellipse 70% 40% at 85% -8%,#2c4426 0,transparent 70%),
+    var(--bg);
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer}
+h1,h2,h3,p{margin:0}
+:focus-visible{outline:2px solid var(--lime);outline-offset:2px}
+.mono{font-family:var(--mono)}
+
+.shell{max-width:1200px;margin:0 auto;padding:20px 24px 28px}
+.top{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--line)}
+.brand{display:flex;align-items:center;gap:12px;min-width:0}
+.mark{width:34px;height:34px;flex:none;border-radius:9px;background:var(--lime);color:#17200f;display:grid;place-items:center;font-weight:900;font-size:17px}
+.brand h1{font-size:15px;letter-spacing:-.01em;line-height:1.2}
+.brand small{display:block;color:var(--faint);font-size:12px}
+.top-right{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
+.status[data-state=ok] .dot{background:var(--lime);box-shadow:0 0 10px #b8f36b80}
+.status[data-state=busy] .dot{background:var(--amber);animation:pulse 1.1s ease-in-out infinite}
+.status[data-state=error] .dot{background:var(--red)}
+@keyframes pulse{50%{opacity:.35}}
+
+.switch{display:inline-flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;width:1px;height:1px}
+.switch i{width:34px;height:20px;border-radius:99px;background:#2a332d;border:1px solid var(--line-strong);position:relative;flex:none;transition:background .15s,border-color .15s}
+.switch i:after{content:"";position:absolute;top:2px;left:2px;width:14px;height:14px;border-radius:50%;background:var(--muted);transition:transform .15s,background .15s}
+.switch input:checked+i{background:var(--lime-wash);border-color:var(--lime-dim)}
+.switch input:checked+i:after{transform:translateX(14px);background:var(--lime)}
+.switch input:focus-visible+i{outline:2px solid var(--lime);outline-offset:2px}
+
+.banner{margin-top:14px;padding:9px 13px;border:1px solid #6a5a30;background:var(--amber-wash);color:var(--amber);border-radius:9px;font-size:13px}
+
+.layout{display:grid;grid-template-columns:264px minmax(0,1fr);gap:20px;padding-top:18px;align-items:start}
+.rail{position:sticky;top:14px;display:grid;gap:12px;min-width:0}
+.card{border:1px solid var(--line);background:var(--panel);border-radius:12px}
+.rail-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px}
+.rail-head h2,.section-title{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.count{font:12px var(--mono);color:var(--lime)}
+.alias-list{display:grid;gap:2px;padding:0 6px 8px;max-height:min(52vh,560px);overflow:auto}
+.alias{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;border:1px solid transparent;background:transparent;border-radius:8px;text-align:left;padding:6px 8px}
+.alias:hover{background:#ffffff09}
+.alias[aria-current=true]{background:var(--lime-wash);border-color:#b8f36b40}
+.tag{flex:none;width:24px;text-align:center;font:700 10px/18px var(--mono);border-radius:4px;color:var(--muted);background:#ffffff0b}
+.alias[aria-current=true] .tag{color:var(--lime);background:#b8f36b1c}
+.alias-name{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font:13px var(--mono);min-width:0}
+.alias-meta{margin-left:auto;display:flex;align-items:center;gap:6px;color:var(--faint);font:12px var(--mono);flex:none}
+.flag{width:7px;height:7px;border-radius:50%}
+.flag.error{background:var(--red)}
+.flag.warn{background:var(--amber)}
+.alias-form{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:6px;padding:8px;border-top:1px solid var(--line)}
+.rail-link{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;min-height:40px;padding:8px 14px;background:var(--panel);border:1px solid var(--line);border-radius:12px;text-align:left;font-size:13px}
+.rail-link:hover{border-color:var(--line-strong)}
+.rail-link[aria-current=true]{border-color:#b8f36b40;background:var(--lime-wash)}
+.rail-link span:last-child{color:var(--faint);font-size:12px}
+
+input[type=text],input[type=password],input[type=number],input:not([type]),select,textarea{
+  width:100%;min-width:0;min-height:36px;padding:7px 10px;border:1px solid #344039;border-radius:8px;background:var(--inset);outline:none;font-size:13px
+}
+textarea{resize:vertical;font-family:var(--mono);line-height:1.5}
+input::placeholder,textarea::placeholder{color:var(--faint)}
+input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:0 0 0 3px #b8f36b1a}
+[aria-invalid=true]{border-color:var(--red)!important;box-shadow:0 0 0 3px var(--red-wash)!important}
+.model-input{font-family:var(--mono)}
+
+.btn{min-height:36px;padding:6px 12px;border:1px solid var(--line-strong);border-radius:8px;background:#232c26;font-size:13px;font-weight:600;white-space:nowrap;transition:background .12s,border-color .12s}
+.btn:hover:not(:disabled){background:#2c3730;border-color:#5f7265}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+.btn.primary{background:var(--lime);border-color:var(--lime);color:#18210f;font-weight:750}
+.btn.primary:hover:not(:disabled){background:#c9ff83;border-color:#c9ff83}
+.btn.ghost{background:transparent}
+.btn.danger{color:var(--red)}
+.btn.danger:hover:not(:disabled){border-color:#8b4e47;background:var(--red-wash)}
+.btn.small{min-height:28px;padding:2px 9px;font-size:12px}
+.linkish{border:0;background:none;padding:0;color:var(--lime);font-size:12px;text-decoration:underline;text-underline-offset:2px}
+
+.work{display:grid;gap:14px;min-width:0;animation:rise .22s ease-out}
+@keyframes rise{from{opacity:0;transform:translateY(4px)}}
+.head{padding:16px 18px}
+.head-line{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
+.head h2{font:600 21px/1.25 var(--mono);letter-spacing:-.02em;overflow-wrap:anywhere}
+.head-actions{display:flex;gap:6px;flex:none}
+.route{margin-top:12px;padding:9px 12px;border-radius:8px;background:var(--inset);border:1px solid var(--line);font:13px/1.7 var(--mono);overflow-wrap:anywhere}
+.route b{font-weight:500;color:var(--lime)}
+.route i{font-style:normal;color:var(--faint);padding:0 6px}
+.route .none{color:var(--red)}
+.route small{display:block;color:var(--muted);font:12px/1.5 var(--sans)}
+
+.checks{display:grid;gap:6px;margin-top:10px}
+.checks:empty{display:none;margin:0}
+.check{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:7px 11px;border-radius:8px;font-size:13px;border:1px solid}
+.check.warn{color:var(--amber);background:var(--amber-wash);border-color:#5e5130}
+.check.error{color:var(--red);background:var(--red-wash);border-color:#6d423b}
+
+.section{padding:15px 18px 17px}
+.section-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:11px}
+.section-note{color:var(--muted);font-size:12px}
+.help{color:var(--muted);font-size:12px;margin-top:9px}
+
+.strategies{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px}
+.strategy{position:relative;display:block;padding:9px 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel-2);cursor:pointer}
+.strategy:hover{border-color:var(--line-strong)}
+.strategy input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.strategy strong{display:block;font-size:13px;font-weight:650}
+.strategy span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:2px}
+.strategy:has(input:checked){border-color:var(--lime-dim);background:var(--lime-wash)}
+.strategy:has(input:checked) strong{color:var(--lime)}
+.strategy:has(input:focus-visible){outline:2px solid var(--lime);outline-offset:2px}
+
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:13px}
+.grid .wide{grid-column:1/-1}
+.field{display:grid;gap:4px;align-content:start;min-width:0}
+.field label{font-size:12px;font-weight:600;color:var(--muted)}
+.field small{font-size:12px;color:var(--faint);line-height:1.4}
+.toggle{display:flex;align-items:center;gap:9px;font-size:13px;cursor:pointer;min-height:36px}
+.toggle input{accent-color:var(--lime);width:16px;height:16px;flex:none;margin:0}
+
+.rows{display:grid;gap:7px}
+.row{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+.order{position:relative;width:30px;height:36px;display:grid;place-items:center;border-radius:7px;color:var(--lime);background:var(--lime-wash);font:12px var(--mono)}
+.rows[data-flow=sequence] .row:not(:last-child) .order:after{content:"↓";position:absolute;left:0;right:0;top:38px;text-align:center;color:var(--faint);font-size:12px;line-height:1}
+.rows[data-flow=parallel] .order{color:var(--text);background:#ffffff10}
+.row-fields{display:grid;gap:4px;min-width:0}
+.row details summary{cursor:pointer;color:var(--faint);font-size:12px;padding:2px 0;width:fit-content}
+.row details summary:hover{color:var(--muted)}
+.row details[open] summary{margin-bottom:6px}
+.pair{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:8px}
+.row-actions{display:flex;gap:3px}
+.icon{width:32px;height:36px;border:1px solid var(--line);background:transparent;color:var(--muted);border-radius:7px;font-size:14px}
+.icon:hover:not(:disabled){color:var(--text);border-color:#6d7f72}
+.icon:disabled{opacity:.3;cursor:not-allowed}
+.icon.remove:hover:not(:disabled){color:var(--red);border-color:#8b4e47}
+.add{margin-top:8px;width:100%;border-style:dashed;background:transparent;color:var(--muted)}
+.add:hover:not(:disabled){color:var(--text)}
+.inner-empty{padding:18px;text-align:center;color:var(--muted);font-size:13px;border:1px dashed var(--line-strong);border-radius:10px}
+
+.empty{padding:44px 24px;text-align:center}
+.empty strong{display:block;font-size:16px;margin-bottom:6px}
+.empty p{color:var(--muted);max-width:420px;margin:0 auto 14px}
+
+.savebar{position:sticky;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;background:#171e19f5;backdrop-filter:blur(10px);border:1px solid var(--line-strong);border-radius:12px;box-shadow:0 10px 34px #0007;margin-top:14px}
+.savebar[data-kind=error]{border-color:#8b4e47}
+.savebar[data-kind=success]{border-color:var(--lime-dim)}
+.message{font-size:13px;min-width:0;flex:1 1 240px}
+.savebar[data-kind=error] .message{color:var(--red)}
+.savebar[data-kind=success] .message{color:var(--lime)}
+.save-actions{display:flex;gap:8px;flex:none;margin-left:auto}
+
+.hide{display:none!important}
+.gate{position:fixed;inset:0;z-index:5;display:none;place-items:center;padding:20px;background:#090d0be0;backdrop-filter:blur(6px)}
+.gate.open{display:grid}
+.gate-card{width:min(100%,420px);padding:22px}
+.gate-card h2{font-size:19px;margin-bottom:6px}
+.gate-card p{color:var(--muted);font-size:13px;margin-bottom:13px}
+.gate-error{color:var(--red);font-size:13px;margin-top:8px}
+.gate-actions{display:flex;justify-content:flex-end;margin-top:12px}
+dialog{width:min(calc(100% - 32px),430px);padding:20px;color:var(--text);background:var(--panel);border:1px solid var(--line-strong);border-radius:13px;box-shadow:0 20px 60px #000a}
+dialog::backdrop{background:#090d0bcc}
+dialog h2{font-size:17px;margin-bottom:6px}
+dialog p{color:var(--muted);font-size:13px;margin-bottom:12px;overflow-wrap:anywhere}
+.dialog-error{color:var(--red);font-size:13px;margin-top:7px;min-height:18px}
+.dialog-actions{display:flex;justify-content:flex-end;gap:8px;margin-top:10px}
+
+@media(max-width:860px){
+  .shell{padding:14px 12px 20px}
+  .layout{grid-template-columns:1fr;gap:12px}
+  .rail{position:static}
+  .alias-list{max-height:220px}
+  .strategies{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .row{grid-template-columns:26px minmax(0,1fr);row-gap:6px}
+  .order{width:26px}
+  .row-actions{grid-column:2;justify-content:flex-end}
+  .icon{width:40px;height:38px}
+  .rows[data-flow=sequence] .row:not(:last-child) .order:after{display:none}
+}
+@media(max-width:460px){.strategies{grid-template-columns:1fr}.head-actions{width:100%}.head-actions .btn{flex:1}}
+@media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
 <div class="shell">
   <header class="top">
-    <div class="brand"><div class="mark">↗</div><div><div class="eyebrow">CLIProxyAPI · plugin studio</div><h1>Combo Router</h1></div></div>
-    <div class="status"><span class="dot"></span><span id="connectionLabel">Connecting to CPA…</span></div>
+    <div class="brand"><div class="mark" aria-hidden="true">↗</div><div><h1>Combo Router</h1><small>CLIProxyAPI plugin</small></div></div>
+    <div class="top-right">
+      <label class="switch"><input type="checkbox" id="enabled"><i aria-hidden="true"></i><span>Combo routing</span></label>
+      <div class="status" id="status" data-state="busy"><span class="dot" aria-hidden="true"></span><span id="statusText" role="status">Connecting to CPA…</span></div>
+    </div>
   </header>
+  <div class="banner hide" id="disabledBanner">Combo routing is off. These aliases are not served until you turn it on and save.</div>
   <main class="layout">
-    <aside class="rail panel"><div class="rail-head"><h2>Model aliases</h2><span class="count" id="aliasCount">00</span></div><div class="alias-list" id="aliasList"></div><form class="alias-form" id="aliasForm"><input id="newAlias" type="text" autocomplete="off" placeholder="e.g. combo-fast" aria-label="New combo alias"><button class="btn" type="submit">Add</button></form><div class="rail-foot">One client-facing model name · ordered candidates underneath</div></aside>
-    <section class="work">
-      <section class="hero panel">
-        <div class="hero-line"><div><div class="kicker"><span id="strategyLabel">Fallback sequence</span> / <span id="sequenceCount">0</span> models</div><h2 id="aliasTitle">Build your first combo</h2><p id="heroHint">Give the combo a short alias, then arrange the models CPA should try in order.</p></div><span class="pill" id="strategyPill">Fallback</span></div>
-        <label class="toggle"><input type="checkbox" id="enabled"><span>Enable combo routing for this plugin</span></label>
-      </section>
-      <div class="toolbar"><span class="kicker" id="candidateHint">Candidate order · first available wins</span><div class="save-actions"><span class="model-status" id="modelStatus" role="status">Models not loaded</span><button class="btn" id="refreshModelsBtn" type="button">Refresh models</button><button class="btn" id="renameBtn" type="button">Rename alias</button><button class="btn danger" id="deleteBtn" type="button">Delete alias</button></div></div>
-      <form class="catalog-access panel" id="clientKeyForm"><div class="catalog-key-head"><label for="clientAPIKey">Client API key</label><span>Used for the aggregate /v1/models catalog; kept in this tab until you forget it or close the tab.</span></div><div class="catalog-key-controls"><input id="clientAPIKey" type="password" autocomplete="new-password" placeholder="CPA client API key" aria-describedby="clientKeyMessage"><button class="btn primary" type="submit">Load models</button><button class="btn subtle" id="forgetClientKeyBtn" type="button">Forget key</button></div><div class="catalog-key-message" id="clientKeyMessage" role="status" aria-live="polite"></div></form>
-      <section class="chain panel" id="chainPanel"><div class="loading">Loading saved combos…</div></section>
-      <div class="note"><b>↻</b><span>Strategies are configured per alias. Fallback and Smart use ordered retries; Round-robin rotates the starting model; Fusion runs panel models in parallel and may use additional tokens. Add candidates with compatible protocol support. Provider pin and protocol are optional advanced fields.</span></div>
-      <div class="message" id="message" role="status" aria-live="polite"></div>
-      <footer class="bottom hide" id="saveFooter"><div class="save-copy"><strong>Unsaved changes.</strong><br>Save to apply the updated combo configuration.</div><div class="save-actions"><button class="btn subtle" id="reloadBtn" type="button">Discard edits</button><button class="btn primary" id="saveBtn" type="button">Save combo settings</button></div></footer>
-    </section>
+    <nav class="rail" aria-label="Combo aliases">
+      <div class="card">
+        <div class="rail-head"><h2>Model aliases</h2><span class="count" id="aliasCount">0</span></div>
+        <div class="alias-list" id="aliasList"></div>
+        <form class="alias-form" id="aliasForm" novalidate><input id="newAlias" type="text" autocomplete="off" spellcheck="false" class="mono" placeholder="combo-fast" aria-label="New combo alias"><button class="btn" type="submit">Add</button></form>
+      </div>
+      <button class="rail-link" id="settingsLink" type="button"><span>Global settings</span><span id="settingsMeta"></span></button>
+    </nav>
+    <div>
+      <section class="work" id="main"><div class="card empty"><p>Loading saved combos…</p></div></section>
+      <footer class="savebar hide" id="savebar"><div class="message" id="message" role="status" aria-live="polite"></div><div class="save-actions" id="saveActions"><button class="btn ghost" id="discardBtn" type="button">Discard edits</button><button class="btn primary" id="saveBtn" type="button">Save combo settings</button></div></footer>
+    </div>
   </main>
 </div>
-<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle"><div class="gate-card panel"><div class="kicker">Management access</div><h2 id="gateTitle">Connect to your CPA</h2><p>The dashboard session does not have a remembered management key. Enter the CPA management key to load and save plugin settings. It stays in this page only.</p><form id="keyForm"><input class="key-input" id="managementKey" type="password" autocomplete="current-password" placeholder="CPA management key" required><div class="gate-actions"><button class="btn primary" type="submit">Connect</button></div></form></div></div>
+<div class="gate" id="gate" role="dialog" aria-modal="true" aria-labelledby="gateTitle"><div class="gate-card card"><h2 id="gateTitle">Connect to your CPA</h2><p>Enter the CPA management key to load and save plugin settings. It stays in this page only.</p><form id="keyForm" novalidate><input id="managementKey" type="password" autocomplete="current-password" placeholder="CPA management key" aria-label="CPA management key" aria-describedby="gateError"><div class="gate-error hide" id="gateError" role="alert"></div><div class="gate-actions"><button class="btn primary" type="submit">Connect</button></div></form></div></div>
+<dialog id="dialog" aria-labelledby="dialogTitle"><form id="dialogForm" method="dialog" novalidate><h2 id="dialogTitle"></h2><p id="dialogText"></p><input id="dialogInput" type="text" class="mono hide" autocomplete="off" spellcheck="false" aria-labelledby="dialogTitle"><div class="dialog-error hide" id="dialogError" role="alert"></div><div class="dialog-actions"><button class="btn ghost" id="dialogCancel" type="button">Cancel</button><button class="btn primary" id="dialogConfirm" type="submit">Confirm</button></div></form></dialog>
+<datalist id="modelCatalog"></datalist>
 
 <script>
 (()=>{'use strict';
-const PLUGIN='cpa-combo-router',CLIENT_KEY_STORAGE='cpa-combo-router.client-api-key',DEFAULT_RETRIES=[403,429,502,503,504],DEFAULT_ATTEMPTS=3;
-const byId=id=>document.getElementById(id),ui={aliases:byId('aliasList'),chain:byId('chainPanel'),title:byId('aliasTitle'),hint:byId('heroHint'),count:byId('sequenceCount'),aliasCount:byId('aliasCount'),enabled:byId('enabled'),message:byId('message'),status:byId('connectionLabel'),gate:byId('gate'),key:byId('managementKey'),clientKey:byId('clientAPIKey'),clientKeyMessage:byId('clientKeyMessage'),footer:byId('saveFooter'),modelStatus:byId('modelStatus'),strategyLabel:byId('strategyLabel'),strategyPill:byId('strategyPill'),candidateHint:byId('candidateHint'),refreshModels:byId('refreshModelsBtn'),save:byId('saveBtn'),rename:byId('renameBtn'),delete:byId('deleteBtn')};
-let config={},chains={},strategies={},selected='',managementKey='',clientAPIKey='',dirty=false,saving=false,retryText=DEFAULT_RETRIES.join(', '),attemptsText=String(DEFAULT_ATTEMPTS),savedState='',availableModels=[],modelsLoading=false,modelPickerSequence=0;
+const PLUGIN='cpa-combo-router',CLIENT_KEY_STORAGE='cpa-combo-router.client-api-key',DEFAULT_RETRIES=[403,429,500,502,503,504],DEFAULT_ATTEMPTS=3,REQUEST_TIMEOUT_MS=30000;
+const STRATEGIES=[
+  {id:'fallback',label:'Fallback',tag:'FB',blurb:'Try models in order until one works.'},
+  {id:'round-robin',label:'Round-robin',tag:'RR',blurb:'Rotate the starting model to spread load.'},
+  {id:'smart',label:'Smart selection',tag:'SM',blurb:'A small model picks the best fit.'},
+  {id:'fusion',label:'Fusion + judge',tag:'FX',blurb:'All answer, a judge merges. Costs more.'}
+];
+const PROTOCOLS=[['','Use incoming protocol'],['openai','OpenAI Chat Completions'],['openai-response','OpenAI Responses'],['claude','Claude'],['gemini','Gemini'],['codex','Codex'],['antigravity','Antigravity'],['interactions','Interactions']];
+
+const byId=id=>document.getElementById(id);
+const ui={main:byId('main'),aliases:byId('aliasList'),aliasCount:byId('aliasCount'),aliasForm:byId('aliasForm'),newAlias:byId('newAlias'),settingsLink:byId('settingsLink'),settingsMeta:byId('settingsMeta'),enabled:byId('enabled'),banner:byId('disabledBanner'),status:byId('status'),statusText:byId('statusText'),savebar:byId('savebar'),message:byId('message'),saveActions:byId('saveActions'),save:byId('saveBtn'),discard:byId('discardBtn'),gate:byId('gate'),gateError:byId('gateError'),key:byId('managementKey'),catalog:byId('modelCatalog'),dialog:byId('dialog')};
+
+let config={},chains={},strategies={},selected='',view='alias';
+let managementKey='',clientAPIKey='',loadedRaw='',savedState='';
+let hasLoaded=false,dirty=false,saving=false,saveAttempted=false;
+let retryText=DEFAULT_RETRIES.join(', '),attemptsText=String(DEFAULT_ATTEMPTS),firstByteText='',attemptTimeoutText='';
+let availableModels=[],modelsRequest=0,modelStatusText='Client API key needed',modelStatusError=false;
+let fieldSequence=0,messageTimer=0;
+const openAdvanced=new WeakSet();
+
+class AuthError extends Error{}
+
+// ---- helpers ----------------------------------------------------------------
+function h(tag,props,...children){
+  const el=document.createElement(tag);
+  for(const [key,value] of Object.entries(props||{})){
+    if(value===undefined||value===null||value===false)continue;
+    if(key==='class')el.className=value;
+    else if(key==='text')el.textContent=value;
+    else if(key.startsWith('on'))el.addEventListener(key.slice(2),value);
+    else if(key==='for')el.htmlFor=value;
+    else if(key.startsWith('data-')||key.startsWith('aria-')||key==='role'||key==='list'||key==='title')el.setAttribute(key,String(value));
+    else el[key]=value;
+  }
+  for(const child of children.flat()){if(child!==null&&child!==undefined&&child!==false)el.append(child)}
+  return el;
+}
+const own=(object,key)=>Object.prototype.hasOwnProperty.call(object,key);
+const plural=(n,word)=>n+' '+word+(n===1?'':'s');
+function canonical(value){
+  if(Array.isArray(value))return '['+value.map(canonical).join(',')+']';
+  if(value&&typeof value==='object')return '{'+Object.keys(value).sort().map(key=>JSON.stringify(key)+':'+canonical(value[key])).join(',')+'}';
+  return JSON.stringify(value===undefined?null:value);
+}
+function setStatus(state,text){ui.status.dataset.state=state;ui.statusText.textContent=text}
+function setMessage(text,kind=''){
+  clearTimeout(messageTimer);
+  ui.message.textContent=text;
+  ui.savebar.dataset.kind=kind;
+  updateSavebar();
+  if(kind==='success')messageTimer=setTimeout(()=>{if(ui.savebar.dataset.kind==='success')setMessage('')},6000);
+}
+function updateSavebar(){
+  const text=ui.message.textContent;
+  if(dirty&&!text)ui.message.textContent='Unsaved changes.';
+  if(!dirty&&text==='Unsaved changes.')ui.message.textContent='';
+  ui.savebar.classList.toggle('hide',!dirty&&!ui.message.textContent);
+  ui.saveActions.classList.toggle('hide',!dirty);
+  ui.save.disabled=saving;
+  ui.discard.disabled=saving;
+  ui.save.textContent=saving?'Saving…':'Save combo settings';
+}
+
+// ---- storage and network ----------------------------------------------------
 function discoverBase(){const path=location.pathname;const marker='/v0/resource/plugins/';const i=path.lastIndexOf(marker);return i>=0?location.origin+path.slice(0,i):location.origin}
 const base=discoverBase();
 function decodeStorage(value){if(!value||!value.startsWith('enc::v1::'))return value;try{const raw=atob(value.slice(9)),key=new TextEncoder().encode('cli-proxy-api-webui::secure-storage|'+location.host+'|'+navigator.userAgent),bytes=new Uint8Array(raw.length);for(let i=0;i<raw.length;i++)bytes[i]=raw.charCodeAt(i)^key[i%key.length];return new TextDecoder().decode(bytes)}catch{return ''}}
@@ -49,49 +306,607 @@ function rememberedKey(){for(const name of ['cli-proxy-auth','managementKey']){t
 function readClientAPIKey(){try{return sessionStorage.getItem(CLIENT_KEY_STORAGE)||''}catch{return ''}}
 function rememberClientAPIKey(value){clientAPIKey=value;try{if(value)sessionStorage.setItem(CLIENT_KEY_STORAGE,value);else sessionStorage.removeItem(CLIENT_KEY_STORAGE)}catch{}}
 function apiURL(){return base+'/v0/management/plugins/'+encodeURIComponent(PLUGIN)+'/config'}
-function showMessage(text,kind=''){ui.message.textContent=text;ui.message.className='message'+(kind?' '+kind:'')}
-function authHeaders(extra={}){return {'Authorization':'Bearer '+managementKey,'Content-Type':'application/json',...extra}}
-async function request(path,options={}){const url=/^https?:\/\//.test(path)?path:base+path;const response=await fetch(url,{...options,headers:authHeaders(options.headers||{})});if(response.status===401||response.status===403){throw new Error('CPA rejected the management key (HTTP '+response.status+').')};if(!response.ok){const text=await response.text();throw new Error('CPA request failed ('+response.status+'): '+(text||response.statusText).slice(0,260))}return response}
-async function load(){ui.status.textContent='Reading saved combo configuration…';showMessage('');const response=await request(apiURL(),{method:'GET'});config=await response.json();if(!config||typeof config!=='object'||Array.isArray(config))config={};chains=normalizeChains(config.model_chains);strategies=normalizeStrategies(config.strategies,chains);selected=Object.keys(chains).sort()[0]||'';retryText=Array.isArray(config.retry_statuses)&&config.retry_statuses.length?config.retry_statuses.join(', '):DEFAULT_RETRIES.join(', ');attemptsText=String(config.max_attempts??DEFAULT_ATTEMPTS);ui.enabled.checked=config.enabled===true;savedState=editableState();dirty=false;render();ui.status.textContent='Connected to CPA';void loadModels()}
-async function loadModels(){if(modelsLoading)return;if(!clientAPIKey){ui.modelStatus.textContent='Client API key needed · custom IDs available';ui.clientKeyMessage.textContent='Enter a client API key to load the model catalog, or continue with custom IDs.';return}modelsLoading=true;ui.refreshModels.disabled=true;ui.clientKeyMessage.textContent='';ui.clientKeyMessage.className='catalog-key-message';ui.modelStatus.textContent='Loading models…';try{const response=await fetch(base+'/v1/models',{headers:{'Authorization':'Bearer '+clientAPIKey}});if(response.status===401||response.status===403){rememberClientAPIKey('');ui.clientKey.value='';throw new Error('CPA rejected the client API key. Check it and try again.')}if(!response.ok)throw new Error('CPA model catalog request failed (HTTP '+response.status+').');const payload=await response.json();const modelsById=new Map();for(const item of Array.isArray(payload?.data)?payload.data:[]){const id=String(item?.id??'').trim();if(!id)continue;let model=modelsById.get(id);if(!model){model={id,providers:new Set()};modelsById.set(id,model)}const provider=String(item?.owned_by??'').trim();if(provider)model.providers.add(provider)}availableModels=Array.from(modelsById.values()).map(model=>({id:model.id,providers:Array.from(model.providers).sort()})).sort((a,b)=>a.id.localeCompare(b.id));ui.modelStatus.textContent=availableModels.length?availableModels.length+' models':'No models found · custom IDs available'}catch(error){ui.modelStatus.textContent='Model list unavailable · custom IDs available';if(error instanceof Error){ui.clientKeyMessage.textContent=error.message;ui.clientKeyMessage.className='catalog-key-message error';console.warn('Combo Router could not load available models:',error.message)}}finally{modelsLoading=false;ui.refreshModels.disabled=false;render()}}
+async function send(url,options){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),REQUEST_TIMEOUT_MS);
+  try{return await fetch(url,{...options,signal:controller.signal})}
+  catch(error){
+    if(error&&error.name==='AbortError')throw new Error('CPA did not respond within '+REQUEST_TIMEOUT_MS/1000+' seconds.');
+    throw new Error('Could not reach CPA. Check that it is running and try again.');
+  }finally{clearTimeout(timer)}
+}
+async function managementRequest(options={}){
+  const response=await send(apiURL(),{...options,headers:{'Authorization':'Bearer '+managementKey,'Content-Type':'application/json'}});
+  if(response.status===401||response.status===403)throw new AuthError('CPA rejected the management key (HTTP '+response.status+').');
+  if(!response.ok){const text=await response.text();throw new Error('CPA request failed (HTTP '+response.status+'): '+(text||response.statusText).slice(0,260))}
+  return response;
+}
+async function fetchConfig(){
+  const value=await (await managementRequest({method:'GET'})).json();
+  return value&&typeof value==='object'&&!Array.isArray(value)?value:{};
+}
+
+// ---- normalizing saved settings ----------------------------------------------
 function modelID(value){const model=String(value??'').trim();return model.toLowerCase()==='undefined'||model.toLowerCase()==='null'?'':model}
-function normalizeChains(value){const out={};if(!value||typeof value!=='object'||Array.isArray(value))return out;for(const [alias,list] of Object.entries(value)){if(!Array.isArray(list))continue;out[alias]=list.map(item=>({model:modelID(item?.model),provider:String(item?.provider??''),protocol:String(item?.protocol??'')}))}return out}
-function normalizeStrategies(value,modelChains){const out={};for(const alias of Object.keys(modelChains||{})){const raw=value&&typeof value==='object'&&!Array.isArray(value)?value[alias]:null;const candidate=item=>({model:modelID(item?.model),provider:String(item?.provider??''),protocol:String(item?.protocol??'')});const type=['fallback','round-robin','smart','fusion'].includes(raw?.type)?raw.type:'fallback';out[alias]={type,sticky_limit:Number.isInteger(Number(raw?.sticky_limit))&&Number(raw?.sticky_limit)>0?Number(raw.sticky_limit):1,selector:candidate(raw?.selector),judge:candidate(raw?.judge),confidence_threshold:Number.isFinite(Number(raw?.confidence_threshold))&&Number(raw?.confidence_threshold)>0?Number(raw.confidence_threshold):0.8,vision_enabled:raw?.vision_enabled===true,vision_candidates:Array.isArray(raw?.vision_candidates)?raw.vision_candidates.map(candidate):[],vision_judge:candidate(raw?.vision_judge)}}return out}
-function strategyFor(alias){if(!strategies[alias])strategies[alias]=normalizeStrategies({}, {[alias]:[]})[alias];return strategies[alias]}
-function editableState(){const modelChains={};for(const alias of Object.keys(chains).sort())modelChains[alias]=chains[alias].map(({model,provider,protocol})=>({model,provider,protocol}));const savedStrategies=normalizeStrategies(strategies,chains);const retryStatuses=retryText.split(',').map(value=>value.trim()).filter(Boolean).map(value=>Number.isNaN(Number(value))?value:Number(value));const attempts=Number(attemptsText.trim());return JSON.stringify({enabled:ui.enabled.checked,model_chains:modelChains,strategies:savedStrategies,retry_statuses:retryStatuses,max_attempts:Number.isInteger(attempts)?attempts:attemptsText.trim()})}
-function updatePendingChanges(){dirty=editableState()!==savedState;ui.footer.classList.toggle('hide',!dirty);ui.save.disabled=saving}
-function markDirty(){updatePendingChanges()}
-function button(label,action,className='btn'){const el=document.createElement('button');el.type='button';el.className=className;el.textContent=label;el.addEventListener('click',action);return el}
-function makeCandidate(candidate,index,list){const card=document.createElement('div');card.className='candidate';const order=document.createElement('div');order.className='order';order.textContent=String(index+1).padStart(2,'0');card.append(order);const fields=document.createElement('div');fields.className='fields';
- const model=makeModelPicker(candidate);fields.append(model);
- const advanced=document.createElement('details');advanced.className='advanced-wrap';const summary=document.createElement('summary');summary.textContent='Advanced routing (optional)';summary.style.cssText='font-size:11px;color:var(--muted);cursor:pointer;padding:2px 0';advanced.append(summary);const adv=document.createElement('div');adv.className='advanced';
- const provider=field('Provider pin','', 'leave blank to let CPA resolve','text');provider.input.value=candidate.provider;provider.input.autocomplete='off';provider.input.addEventListener('input',()=>{candidate.provider=provider.input.value;markDirty()});adv.append(provider.wrap);
- const protocolWrap=document.createElement('div');protocolWrap.className='field';const protocolLabel=document.createElement('label');protocolLabel.textContent='Protocol override';const select=document.createElement('select');[['','Use incoming protocol'],['openai','OpenAI Chat Completions'],['openai-response','OpenAI Responses'],['claude','Claude'],['gemini','Gemini'],['codex','Codex'],['antigravity','Antigravity'],['interactions','Interactions']].forEach(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;select.append(option)});select.value=candidate.protocol;select.addEventListener('change',()=>{candidate.protocol=select.value;markDirty()});protocolWrap.append(protocolLabel,select);adv.append(protocolWrap);advanced.append(adv);fields.append(advanced);card.append(fields);
- const actions=document.createElement('div');actions.className='row-actions';const up=button('↑',()=>moveCandidate(list,index,-1),'icon-btn');up.disabled=index===0;up.setAttribute('aria-label','Move candidate up');const down=button('↓',()=>moveCandidate(list,index,1),'icon-btn');down.disabled=index===list.length-1;down.setAttribute('aria-label','Move candidate down');const remove=button('×',()=>{list.splice(index,1);markDirty();renderChain()},'icon-btn remove');remove.setAttribute('aria-label','Remove candidate');actions.append(up,down,remove);card.append(actions);return card}
-function field(label,value,placeholder,type){const wrap=document.createElement('div');wrap.className='field';const l=document.createElement('label');l.textContent=label;const input=document.createElement('input');input.type=type;input.value=value;input.placeholder=placeholder;wrap.append(l,input);return {wrap,input}}
-function makeModelPicker(candidate,labelText='Model ID',placeholderText='Search or type a model ID…'){const wrap=document.createElement('div');wrap.className='field';const label=document.createElement('label');label.textContent=labelText;const input=document.createElement('input');input.type='text';input.autocomplete='off';input.spellcheck=false;input.placeholder=availableModels.length?placeholderText:'Enter a model ID, or load the catalog…';input.setAttribute('aria-label',labelText==='Model ID'?'Choose model ID':labelText);candidate.model=modelID(candidate.model);input.value=candidate.model;const list=document.createElement('datalist');list.id='model-catalog-'+(++modelPickerSequence);input.setAttribute('list',list.id);for(const model of availableModels){const option=document.createElement('option');option.value=model.id;if(model.providers.length)option.label=model.providers.join(', ');list.append(option)}input.addEventListener('input',()=>{candidate.model=modelID(input.value);markDirty()});input.addEventListener('change',()=>{candidate.model=modelID(input.value);input.value=candidate.model});wrap.append(label,input,list);return wrap}
-function moveCandidate(list,index,delta){const next=index+delta;if(next<0||next>=list.length)return;[list[index],list[next]]=[list[next],list[index]];markDirty();renderChain()}
-function addStrategySettings(){const panel=document.createElement('section');panel.className='panel retry-panel';const title=document.createElement('h3');title.className='retry-title';title.textContent='Routing strategy';const grid=document.createElement('div');grid.className='retry-grid';const strategy=strategyFor(selected);const typeWrap=document.createElement('div');typeWrap.className='field';const typeLabel=document.createElement('label');typeLabel.textContent='Strategy';const typeSelect=document.createElement('select');[['fallback','Fallback'],['round-robin','Round-robin'],['smart','Smart selection'],['fusion','Fusion + judge']].forEach(([value,label])=>{const option=document.createElement('option');option.value=value;option.textContent=label;typeSelect.append(option)});typeSelect.value=strategy.type;typeSelect.addEventListener('change',()=>{strategy.type=typeSelect.value;markDirty();renderChain()});typeWrap.append(typeLabel,typeSelect);grid.append(typeWrap);panel.append(title,grid);const help=document.createElement('p');help.className='retry-help';if(strategy.type==='fallback'){help.textContent='Try candidates in the configured order, moving to the next model after a retryable error.'}else if(strategy.type==='round-robin'){const sticky=field('Requests starting at each model',String(strategy.sticky_limit),'1–1000','number');sticky.input.min='1';sticky.input.max='1000';sticky.input.addEventListener('input',()=>{strategy.sticky_limit=Number(sticky.input.value);markDirty()});grid.append(sticky.wrap);help.textContent='Rotate the starting candidate after this many requests, whether those requests succeed or fail. Rotation is process-local and does not persist across plugin restarts.'}else if(strategy.type==='smart'){const selector=makeModelPicker(strategy.selector,'Selector model ID','Search or type a selector model ID…');const provider=field('Selector provider pin',strategy.selector.provider,'Optional CPA provider ID','text');provider.input.autocomplete='off';provider.input.addEventListener('input',()=>{strategy.selector.provider=provider.input.value.trim();markDirty()});const threshold=field('Minimum confidence',String(strategy.confidence_threshold),'0.5–0.95','number');threshold.input.min='0.5';threshold.input.max='0.95';threshold.input.step='0.05';threshold.input.addEventListener('input',()=>{strategy.confidence_threshold=Number(threshold.input.value);markDirty()});grid.append(selector,provider.wrap,threshold.wrap);help.textContent='Choose the model that selects a candidate. The selector returns a candidate choice and confidence; failed or low-confidence selection falls back to the configured candidate order.'}else{const judge=field('Judge model ID (optional)',strategy.judge.model,'Blank uses the first candidate','text');judge.input.autocomplete='off';judge.input.addEventListener('input',()=>{strategy.judge.model=judge.input.value.trim();markDirty()});const provider=field('Judge provider pin (optional)',strategy.judge.provider,'Optional CPA provider ID','text');provider.input.autocomplete='off';provider.input.addEventListener('input',()=>{strategy.judge.provider=provider.input.value.trim();markDirty()});grid.append(judge.wrap,provider.wrap);help.textContent='Ask all candidates in parallel, then have the judge choose a structured tool call or synthesize the final answer. Tool-enabled agent turns stay in Fusion; panels run non-streaming and the final judge response streams. The judge also runs if only one panel succeeds or only one panel is configured.'}panel.append(help);ui.chain.append(panel);addVisionSettings(strategy)}
-function addVisionSettings(strategy){const panel=document.createElement('section');panel.className='panel retry-panel vision-panel';const title=document.createElement('h3');title.className='retry-title';title.textContent='Image-triggered vision routing';const toggleWrap=document.createElement('label');toggleWrap.className='toggle';const toggle=document.createElement('input');toggle.type='checkbox';toggle.checked=strategy.vision_enabled===true;toggle.setAttribute('aria-label','Enable image-triggered vision routing');const toggleText=document.createElement('span');toggleText.textContent='Route image requests to vision models';toggle.addEventListener('change',()=>{strategy.vision_enabled=toggle.checked;markDirty();renderChain()});toggleWrap.append(toggle,toggleText);const help=document.createElement('p');help.className='retry-help';help.textContent='When enabled, requests containing an image payload use this vision pool instead of regular candidates. Text-only requests are unchanged. Smart selection uses its configured selector to choose from the vision pool.';panel.append(title,toggleWrap,help);if(strategy.vision_enabled){const list=strategy.vision_candidates;const header=document.createElement('div');header.className='chain-top';const label=document.createElement('h3');label.textContent=strategy.type==='fusion'?'Vision panel models':'Vision model candidates';const count=document.createElement('span');count.textContent=String(list.length).padStart(2,'0')+' / ordered';header.append(label,count);panel.append(header);const rows=document.createElement('div');rows.className='candidate-list';list.forEach((candidate,index)=>rows.append(makeCandidate(candidate,index,list)));panel.append(rows);panel.append(button('＋ Add vision model',()=>{list.push({model:'',provider:'',protocol:''});markDirty();renderChain()},'btn add-candidate'));if(strategy.type==='fusion'){const judge=makeModelPicker(strategy.vision_judge,'Vision judge model ID (optional)','Blank uses the first vision model');const provider=field('Vision judge provider pin (optional)',strategy.vision_judge.provider,'Optional CPA provider ID','text');provider.input.autocomplete='off';provider.input.addEventListener('input',()=>{strategy.vision_judge.provider=provider.input.value.trim();markDirty()});const judgeGrid=document.createElement('div');judgeGrid.className='retry-grid';judgeGrid.append(judge,provider.wrap);panel.append(judgeGrid);const judgeHelp=document.createElement('p');judgeHelp.className='retry-help';judgeHelp.textContent='If blank, the first vision panel is also the judge. Do not use a text-only judge for image requests.';panel.append(judgeHelp)}}ui.chain.append(panel)}
-function addRetrySettings(){const panel=document.createElement('section');panel.className='panel retry-panel';const title=document.createElement('h3');title.className='retry-title';title.textContent='Retry behavior';const grid=document.createElement('div');grid.className='retry-grid';const statuses=field('Retry on HTTP status codes',retryText,'403, 429, 502, 503, 504','text');statuses.input.addEventListener('input',()=>{retryText=statuses.input.value;markDirty()});const attempts=field('Maximum attempts',attemptsText,'1–20','number');attempts.input.min='1';attempts.input.max='20';attempts.input.addEventListener('input',()=>{attemptsText=attempts.input.value;markDirty()});grid.append(statuses.wrap,attempts.wrap);const help=document.createElement('p');help.className='retry-help';help.textContent='Only 403, 429, and 5xx responses are accepted. A 403 often means access is denied for that account/model; fallback helps only when a later candidate has valid access.';panel.append(title,grid,help);ui.chain.append(panel)}
-function renderChain(){ui.chain.replaceChildren();ui.chain.className='chain panel';if(!selected||!chains[selected]){ui.strategyLabel.textContent='Fallback sequence';ui.strategyPill.textContent='Fallback';ui.candidateHint.textContent='Candidate order · first available wins';ui.chain.className='chain panel empty';const strong=document.createElement('strong');strong.textContent='No combo alias selected';const p=document.createElement('p');p.textContent='Enter a name in the Model aliases panel to create a combo, then add its first model.';ui.chain.append(strong,p);ui.title.textContent='Build your first combo';ui.hint.textContent='Give the combo a short alias, then arrange the models CPA should try in order.';ui.count.textContent='0';ui.rename.disabled=true;return}
- addStrategySettings();const list=chains[selected],header=document.createElement('div');header.className='chain-top';const h=document.createElement('h3');h.textContent=strategyFor(selected).type==='fusion'?'Fusion panel models':'Candidate models';const count=document.createElement('span');count.textContent=String(list.length).padStart(2,'0')+' / ordered';header.append(h,count);ui.chain.append(header);const rows=document.createElement('div');rows.className='candidate-list';list.forEach((candidate,index)=>rows.append(makeCandidate(candidate,index,list)));ui.chain.append(rows);const add=button('＋ Add candidate model',()=>{list.push({model:'',provider:'',protocol:''});markDirty();renderChain()},'btn add-candidate');ui.chain.append(add);addRetrySettings();const strategy=strategyFor(selected),labels={fallback:['Fallback sequence','Fallback','Ordered retries: first candidate first, then retryable failures.'], 'round-robin':['Round-robin sequence','Round-robin','Rotate the starting candidate every configured number of requests, then use the ordered retry chain.'],smart:['Smart selection','Smart','A selector chooses the first candidate; low-confidence or failed selection falls back to the configured order.'],fusion:['Fusion panel','Fusion + judge','Candidates answer in parallel; a judge combines successful answers. This uses additional model calls and tokens.']};const description=labels[strategy.type]||labels.fallback;ui.title.textContent=selected;ui.hint.textContent=description[2];ui.strategyLabel.textContent=description[0];ui.strategyPill.textContent=description[1];ui.candidateHint.textContent=strategy.type==='fusion'?'Panel models · all run concurrently':strategy.type==='round-robin'?'Candidate order · starting model rotates':'Candidate order · selected model first, then ordered fallback';ui.count.textContent=String(list.length);ui.rename.disabled=false}
-function render(){ui.aliases.replaceChildren();const names=Object.keys(chains).sort();ui.aliasCount.textContent=String(names.length).padStart(2,'0');for(const name of names){const item=button('',()=>{selected=name;render() },'alias'+(name===selected?' active':''));const led=document.createElement('span');led.className='alias-led';const label=document.createElement('span');label.className='alias-name';label.textContent=name;const count=document.createElement('span');count.className='alias-count';count.textContent=String(chains[name].length);item.append(led,label,count);ui.aliases.append(item)}ui.enabled.checked=config.enabled===true;renderChain();updatePendingChanges()}
-function createAlias(value){const name=value.trim();if(!name){showMessage('Alias name cannot be empty.','error');return}if(name!==value){showMessage('Remove the leading or trailing spaces from the alias.','error');return}if(Object.prototype.hasOwnProperty.call(chains,name)){showMessage('That alias already exists. Choose it from the list to edit it.','error');return}chains[name]=[];strategies[name]=strategyFor(name);selected=name;byId('newAlias').value='';markDirty();render()}
-byId('aliasForm').addEventListener('submit',event=>{event.preventDefault();createAlias(byId('newAlias').value)});
-ui.rename.addEventListener('click',()=>{if(!selected)return;const next=prompt('Rename combo alias:',selected);if(next===null)return;const alias=next.trim();if(!alias||alias!==next){showMessage('Alias must be non-empty with no outer spaces.','error');return}if(alias===selected)return;if(Object.prototype.hasOwnProperty.call(chains,alias)){showMessage('That alias already exists.','error');return}chains[alias]=chains[selected];strategies[alias]=strategies[selected]||strategyFor(selected);delete chains[selected];delete strategies[selected];selected=alias;markDirty();render()});
-ui.delete.addEventListener('click',()=>{if(!selected)return;if(!confirm('Delete combo alias “'+selected+'” and its candidate list?'))return;delete chains[selected];delete strategies[selected];selected=Object.keys(chains).sort()[0]||'';markDirty();render()});
-ui.enabled.addEventListener('change',()=>{config.enabled=ui.enabled.checked;markDirty()});
-ui.refreshModels.addEventListener('click',()=>void loadModels());
-byId('clientKeyForm').addEventListener('submit',async event=>{event.preventDefault();const key=ui.clientKey.value.trim();if(!key){rememberClientAPIKey('');await loadModels();return}rememberClientAPIKey(key);ui.clientKeyMessage.textContent='';await loadModels()});
-byId('forgetClientKeyBtn').addEventListener('click',()=>{rememberClientAPIKey('');ui.clientKey.value='';availableModels=[];ui.clientKeyMessage.textContent='Client API key forgotten for this tab.';ui.clientKeyMessage.className='catalog-key-message';ui.modelStatus.textContent='Custom model IDs available';render()});
-ui.save.addEventListener('click',save);byId('reloadBtn').addEventListener('click',()=>{if(dirty&&!confirm('Discard all unsaved combo edits?'))return;void load().catch(showLoadError)});
-async function save(){if(saving)return;if(ui.enabled.checked&&Object.keys(chains).length===0){showMessage('Add at least one combo alias before enabling combo routing.','error');return}for(const [alias,list] of Object.entries(chains)){if(!alias.trim()||alias!==alias.trim()){showMessage('Every alias must be non-empty and trimmed.','error');return}if(!list.length){selected=alias;render();showMessage('Add at least one model candidate to “'+alias+'” before saving.','error');return}for(let i=0;i<list.length;i++){list[i].model=list[i].model.trim();list[i].provider=list[i].provider.trim();if(!list[i].model){selected=alias;render();showMessage('Candidate '+(i+1)+' in “'+alias+'” needs a model ID.','error');return}}}
- const retry=retryText.split(',').map(value=>value.trim()).filter(Boolean).map(Number);if(!retry.length||retry.some(code=>!Number.isInteger(code)||(code!==403&&code!==429&&(code<500||code>599)))){showMessage('Retry statuses must be 403, 429, or valid 5xx codes, separated by commas.','error');return}const attempts=Number(attemptsText);if(!Number.isInteger(attempts)||attempts<1||attempts>20){showMessage('Maximum attempts must be a whole number from 1 to 20.','error');return}for(const [alias,strategy] of Object.entries(strategies)){if(!chains[alias])continue;if(strategy.vision_enabled&&strategy.vision_candidates.length===0){selected=alias;render();showMessage('Image-triggered vision routing needs at least one vision candidate in “'+alias+'”.','error');return}for(let i=0;i<strategy.vision_candidates.length;i++){const candidate=strategy.vision_candidates[i];candidate.model=candidate.model.trim();candidate.provider=candidate.provider.trim();if(!candidate.model){selected=alias;render();showMessage('Vision candidate '+(i+1)+' in “'+alias+'” needs a model ID.','error');return}}if(strategy.type==='round-robin'&&(!Number.isInteger(strategy.sticky_limit)||strategy.sticky_limit<1||strategy.sticky_limit>1000)){selected=alias;render();showMessage('Round-robin sticky limit must be a whole number from 1 to 1000.','error');return}if(strategy.type==='smart'&&(!strategy.selector.model.trim()||!Number.isFinite(strategy.confidence_threshold)||strategy.confidence_threshold<0.5||strategy.confidence_threshold>0.95)){selected=alias;render();showMessage('Smart selection needs a selector model and confidence threshold from 0.5 to 0.95.','error');return}if(strategy.type==='fusion'&&chains[alias].length>20){selected=alias;render();showMessage('Fusion supports at most 20 panel models per alias.','error');return}if(strategy.type==='fusion'&&strategy.vision_candidates.length>20){selected=alias;render();showMessage('Fusion supports at most 20 vision panel models per alias.','error');return}if(strategy.type==='fusion'&&!strategy.vision_judge.model.trim()&&(strategy.vision_judge.provider.trim()||strategy.vision_judge.protocol.trim())){selected=alias;render();showMessage('Set a vision judge model ID before adding vision judge provider or protocol overrides.','error');return}if(strategy.type==='fusion'&&!strategy.judge.model.trim()&&(strategy.judge.provider.trim()||strategy.judge.protocol.trim())){selected=alias;render();showMessage('Set a judge model ID before adding judge provider or protocol overrides.','error');return}}const body={...config,enabled:ui.enabled.checked,model_chains:chains,strategies:normalizeStrategies(strategies,chains),retry_statuses:retry,max_attempts:attempts};saving=true;ui.save.disabled=true;ui.status.textContent='Saving and applying…';showMessage('');try{const response=await fetch(apiURL(),{method:'PUT',headers:authHeaders(),body:JSON.stringify(body)});if(response.status===401||response.status===403)throw new Error('CPA rejected the management key.');if(!response.ok){const text=await response.text();throw new Error('Save failed ('+response.status+'): '+(text||response.statusText).slice(0,260))}config=body;retryText=retry.join(', ');attemptsText=String(attempts);savedState=editableState();dirty=false;showMessage('Saved. CPA is applying the plugin configuration.','success');ui.status.textContent='Combo settings applied';render()}catch(error){showMessage(error instanceof Error?error.message:'Unable to save combo settings.','error');ui.status.textContent='Save failed'}finally{saving=false;updatePendingChanges()}}
-function showLoadError(error){ui.status.textContent='CPA connection error';if(error instanceof Error&&(error.message.includes('401')||error.message.includes('403'))){ui.gate.classList.add('open');return}showMessage(error instanceof Error?error.message:'Unable to load combo settings.','error');ui.chain.className='chain panel empty';const strong=document.createElement('strong');strong.textContent='Could not load saved combos';const p=document.createElement('p');p.textContent=error instanceof Error?error.message:'Check that CPA management is available.';ui.chain.append(strong,p,button('↻ Try again',()=>void load().catch(showLoadError),'btn'))}
-byId('keyForm').addEventListener('submit',async event=>{event.preventDefault();managementKey=ui.key.value.trim();if(!managementKey)return;ui.gate.classList.remove('open');ui.key.value='';try{await load()}catch(error){if(error instanceof Error&&error.message.includes('rejected the management key'))ui.gate.classList.add('open');showLoadError(error)}});
-managementKey=rememberedKey();clientAPIKey=readClientAPIKey();ui.clientKey.value=clientAPIKey;if(!managementKey){ui.gate.classList.add('open');ui.status.textContent='Management key required'}else{void load().catch(showLoadError)}
+function isObject(value){return !!value&&typeof value==='object'&&!Array.isArray(value)}
+// Unknown keys are kept, so saving here never strips settings this page does not edit.
+function normalizeCandidate(item){return {...(isObject(item)?item:{}),model:modelID(item?.model),provider:String(item?.provider??''),protocol:String(item?.protocol??'')}}
+function normalizeChains(value){const out={};if(!isObject(value))return out;for(const [alias,list] of Object.entries(value)){if(Array.isArray(list))out[alias]=list.map(normalizeCandidate)}return out}
+function wholeNumber(value){const parsed=Number(value);return Number.isInteger(parsed)&&parsed>0?parsed:0}
+function normalizeHints(value){const out={};if(isObject(value))for(const [model,hint] of Object.entries(value)){const name=String(model).trim(),text=String(hint??'').trim();if(name&&text)out[name]=text}return out}
+// Mirrors the plugin's accepted spellings, so a hand-written "judge" is not downgraded to fallback.
+function strategyType(value){
+  const name=String(value??'').trim().toLowerCase();
+  return {'':'fallback',fallback:'fallback','round-robin':'round-robin',round_robin:'round-robin',smart:'smart','smart-router':'smart',fusion:'fusion',judge:'fusion'}[name]||'fallback';
+}
+function normalizeStrategies(value,modelChains){
+  const out={};
+  for(const alias of Object.keys(modelChains||{})){
+    const raw=isObject(value)&&own(value,alias)&&isObject(value[alias])?value[alias]:{};
+    out[alias]={...raw,
+      type:strategyType(raw.type),
+      sticky_limit:Number.isInteger(Number(raw.sticky_limit))&&Number(raw.sticky_limit)>0?Number(raw.sticky_limit):1,
+      selector:normalizeCandidate(raw.selector),
+      judge:normalizeCandidate(raw.judge),
+      confidence_threshold:Number.isFinite(Number(raw.confidence_threshold))&&Number(raw.confidence_threshold)>0?Number(raw.confidence_threshold):0.8,
+      vision_enabled:raw.vision_enabled===true,
+      vision_candidates:Array.isArray(raw.vision_candidates)?raw.vision_candidates.map(normalizeCandidate):[],
+      vision_judge:normalizeCandidate(raw.vision_judge),
+      panel_timeout_seconds:wholeNumber(raw.panel_timeout_seconds),
+      quorum:wholeNumber(raw.quorum),
+      quorum_grace_seconds:wholeNumber(raw.quorum_grace_seconds),
+      read_only_tools:Array.isArray(raw.read_only_tools)?raw.read_only_tools.map(name=>String(name).trim()).filter(Boolean):[],
+      rotate_per_request:raw.rotate_per_request===true,
+      selector_timeout_seconds:wholeNumber(raw.selector_timeout_seconds),
+      candidate_hints:normalizeHints(raw.candidate_hints)
+    };
+  }
+  return out;
+}
+function strategyFor(alias){if(!strategies[alias])strategies[alias]=normalizeStrategies({},{[alias]:[]})[alias];return strategies[alias]}
+function retryList(){return retryText.split(',').map(value=>value.trim()).filter(Boolean)}
+function attemptLimit(){const attempts=Number(attemptsText);return Number.isInteger(attempts)&&attempts>=1?attempts:DEFAULT_ATTEMPTS}
+function editableState(){return canonical({enabled:ui.enabled.checked,model_chains:chains,strategies:normalizeStrategies(strategies,chains),retry:retryList(),attempts:attemptsText.trim(),firstByte:firstByteText.trim(),attemptTimeout:attemptTimeoutText.trim()})}
+function buildBody(){
+  const body={...config,enabled:ui.enabled.checked,model_chains:chains,strategies:normalizeStrategies(strategies,chains),retry_statuses:retryList().map(Number),max_attempts:Number(attemptsText)};
+  // Blank means "use the plugin's default", which only works if the key is absent.
+  if(firstByteText.trim()==='')delete body.first_byte_timeout_seconds;else body.first_byte_timeout_seconds=Number(firstByteText);
+  if(attemptTimeoutText.trim()==='')delete body.attempt_timeout_seconds;else body.attempt_timeout_seconds=Number(attemptTimeoutText);
+  return body;
+}
+
+// ---- validation --------------------------------------------------------------
+const wholeInRange=(value,min,max)=>Number.isInteger(value)&&value>=min&&value<=max;
+function textIsTimeout(text){const trimmed=text.trim();if(trimmed==='')return true;const value=Number(trimmed);return value===0||wholeInRange(value,5,1800)}
+function computeIssues(){
+  const issues=[];
+  const add=(level,alias,key,message,fix)=>issues.push({level,alias,key,message,fix});
+  const names=Object.keys(chains);
+  if(ui.enabled.checked&&names.length===0)add('error','','', 'Add at least one combo alias before turning combo routing on.');
+  const codes=retryList().map(Number);
+  if(!codes.length||codes.some(code=>!Number.isInteger(code)||(code!==403&&code!==429&&(code<500||code>599))))add('error','','retry','Retry statuses must be 403, 429, or 5xx codes, separated by commas.');
+  else if(!codes.includes(500))add('warn','','retry','500 is not in your retry list. CPA reports dead providers and empty streams as 500, so those stop the chain.',{label:'Add 500',run:()=>{retryText=[...retryList().map(Number),500].sort((a,b)=>a-b).join(', ');renderAll()}});
+  const attempts=Number(attemptsText);
+  if(!wholeInRange(attempts,1,20))add('error','','attempts','Attempts per model must be a whole number from 1 to 20.');
+  if(!textIsTimeout(firstByteText))add('error','','first-byte','First-byte timeout must be blank, 0, or 5 to 1800 seconds.');
+  if(!textIsTimeout(attemptTimeoutText))add('error','','attempt-timeout','Attempt timeout must be blank, 0, or 5 to 1800 seconds.');
+
+  for(const alias of names){
+    const list=chains[alias],strategy=strategyFor(alias),type=strategy.type;
+    if(!list.length)add('error',alias,'add-model','Add at least one model.');
+    list.forEach((candidate,index)=>{if(!candidate.model.trim())add('error',alias,'candidate:'+index,'Model '+(index+1)+' needs a model ID.')});
+    const seen=new Set();
+    for(const candidate of list){
+      const id=candidate.provider.trim()+'/'+candidate.model.trim();
+      if(candidate.model.trim()&&seen.has(id))add('warn',alias,'','“'+candidate.model.trim()+'” is listed twice'+(type==='fusion'?', so it answers twice and costs double.':'.'));
+      seen.add(id);
+    }
+    if(type==='round-robin'){
+      if(!wholeInRange(strategy.sticky_limit,1,1000))add('error',alias,'sticky','Rotation count must be a whole number from 1 to 1000.');
+      if(list.length===1)add('warn',alias,'','Round-robin needs at least two models to rotate.');
+    }
+    if(type==='smart'){
+      if(!strategy.selector.model.trim())add('error',alias,'selector','Smart selection needs a selector model.');
+      if(!Number.isFinite(strategy.confidence_threshold)||strategy.confidence_threshold<0.5||strategy.confidence_threshold>0.95)add('error',alias,'threshold','Minimum confidence must be from 0.5 to 0.95.');
+      if(!wholeInRange(strategy.selector_timeout_seconds,0,120))add('error',alias,'selector-timeout','Selector timeout must be blank or a whole number up to 120.');
+      if(list.length===1)add('warn',alias,'','With one model there is nothing to select, so the selector call is skipped.');
+    }
+    if(type==='fusion'){
+      if(list.length>20)add('error',alias,'','Fusion supports at most 20 panel models.');
+      if(!strategy.judge.model.trim()&&(strategy.judge.provider.trim()||strategy.judge.protocol.trim()))add('error',alias,'judge','Set a judge model before pinning its provider or protocol.');
+      if(strategy.panel_timeout_seconds!==0&&!wholeInRange(strategy.panel_timeout_seconds,10,600))add('error',alias,'panel-timeout','Panel timeout must be blank or a whole number from 10 to 600.');
+      if(!wholeInRange(strategy.quorum,0,20))add('error',alias,'quorum','Quorum must be blank or a whole number up to 20.');
+      if(!wholeInRange(strategy.quorum_grace_seconds,0,300))add('error',alias,'grace','Quorum grace must be blank or a whole number up to 300.');
+      if(list.length===1)add('warn',alias,'','Fusion with one model has no second opinion. Add another model or use Fallback.');
+      if(strategy.quorum>list.length&&list.length)add('warn',alias,'quorum','Quorum is higher than the '+plural(list.length,'model')+' here, so it waits for all of them.');
+    }
+    if(strategy.vision_enabled){
+      if(!strategy.vision_candidates.length)add('error',alias,'add-vision','Vision routing needs at least one vision model.');
+      strategy.vision_candidates.forEach((candidate,index)=>{if(!candidate.model.trim())add('error',alias,'vision:'+index,'Vision model '+(index+1)+' needs a model ID.')});
+      if(type==='fusion'&&strategy.vision_candidates.length>20)add('error',alias,'','Fusion supports at most 20 vision panel models.');
+    }
+    if(!strategy.vision_judge.model.trim()&&(strategy.vision_judge.provider.trim()||strategy.vision_judge.protocol.trim()))add('error',alias,'vision-judge','Set a vision judge model before pinning its provider or protocol.');
+  }
+  return issues;
+}
+// Settings hidden by the current strategy are still checked by the plugin, so a stale
+// value left behind must not block a save the user cannot see the cause of.
+function tidyBeforeSave(){
+  const trim=candidate=>{candidate.model=candidate.model.trim();candidate.provider=candidate.provider.trim()};
+  for(const [alias,list] of Object.entries(chains)){
+    list.forEach(trim);
+    const strategy=strategyFor(alias);
+    trim(strategy.selector);trim(strategy.judge);trim(strategy.vision_judge);
+    strategy.vision_candidates.forEach(trim);
+    if(!strategy.vision_enabled)strategy.vision_candidates=strategy.vision_candidates.filter(candidate=>candidate.model);
+    if(strategy.type!=='smart'&&(strategy.confidence_threshold<0.5||strategy.confidence_threshold>0.95))strategy.confidence_threshold=0.8;
+    if(strategy.type!=='round-robin'&&!wholeInRange(strategy.sticky_limit,1,1000))strategy.sticky_limit=1;
+  }
+}
+
+// ---- form pieces ---------------------------------------------------------------
+function button(label,action,className='btn',extra={}){return h('button',{type:'button',class:className,text:label,onclick:action,...extra})}
+function field({label,value='',placeholder='',type='text',key,hint,min,max,step,wide,rows,mono,onInput}){
+  const id='field-'+(++fieldSequence),hintID=hint?id+'-hint':undefined;
+  const input=rows
+    ?h('textarea',{id,rows,placeholder,value,spellcheck:false,'aria-describedby':hintID,'data-field':key,oninput:()=>onInput(input.value)})
+    :h('input',{type,id,placeholder,value,autocomplete:'off',spellcheck:false,min,max,step,class:mono?'model-input':undefined,'aria-describedby':hintID,'data-field':key,oninput:()=>onInput(input.value)});
+  return h('div',{class:'field'+(wide?' wide':'')},h('label',{for:id,text:label}),input,hint?h('small',{id:hintID,text:hint}):null);
+}
+function modelPicker(candidate,{label='Model ID',placeholder='Search or type a model ID…',key,hint,wide,onChange}={}){
+  candidate.model=modelID(candidate.model);
+  const id='field-'+(++fieldSequence),hintID=hint?id+'-hint':undefined;
+  const input=h('input',{type:'text',id,value:candidate.model,autocomplete:'off',spellcheck:false,class:'model-input',list:'modelCatalog',placeholder,'aria-describedby':hintID,'data-field':key,
+    oninput:()=>{candidate.model=modelID(input.value);touched();if(onChange)onChange()},
+    onchange:()=>{candidate.model=modelID(input.value);input.value=candidate.model}});
+  return h('div',{class:'field'+(wide?' wide':'')},h('label',{for:id,text:label}),input,hint?h('small',{id:hintID,text:hint}):null);
+}
+function protocolSelect(candidate){
+  const id='field-'+(++fieldSequence);
+  const select=h('select',{id,onchange:()=>{candidate.protocol=select.value;touched()}},PROTOCOLS.map(([value,label])=>h('option',{value,text:label})));
+  if(candidate.protocol&&!PROTOCOLS.some(([value])=>value===candidate.protocol))select.append(h('option',{value:candidate.protocol,text:candidate.protocol}));
+  select.value=candidate.protocol;
+  return h('div',{class:'field'},h('label',{for:id,text:'Protocol override'}),select);
+}
+function candidateRow(candidate,index,list,scope){
+  const details=h('details',{ontoggle:()=>{if(details.open)openAdvanced.add(candidate);else openAdvanced.delete(candidate)}});
+  if(candidate.provider||candidate.protocol)openAdvanced.add(candidate);
+  details.open=openAdvanced.has(candidate);
+  details.append(h('summary',{text:'Advanced routing'}),h('div',{class:'pair'},
+    field({label:'Provider pin',value:candidate.provider,placeholder:'Blank lets CPA choose',onInput:value=>{candidate.provider=value;touched()}}),
+    protocolSelect(candidate)));
+  const label=(scope==='vision'?'Vision model ':'Model ')+(index+1);
+  const move=delta=>{
+    const next=index+delta;
+    [list[index],list[next]]=[list[next],list[index]];
+    touched();renderMain();
+    const row=ui.main.querySelector('[data-row="'+scope+':'+next+'"]');
+    const target=row&&(row.querySelector(delta<0?'[data-move=up]:not(:disabled)':'[data-move=down]:not(:disabled)')||row.querySelector('[data-move]:not(:disabled)'));
+    if(target)target.focus();
+  };
+  return h('div',{class:'row','data-row':scope+':'+index},
+    h('div',{class:'order',text:String(index+1),'aria-hidden':'true'}),
+    h('div',{class:'row-fields'},modelPicker(candidate,{label,key:scope+':'+index}),details),
+    h('div',{class:'row-actions'},
+      button('↑',()=>move(-1),'icon',{disabled:index===0,'aria-label':'Move '+label+' up','data-move':'up',title:'Move up'}),
+      button('↓',()=>move(1),'icon',{disabled:index===list.length-1,'aria-label':'Move '+label+' down','data-move':'down',title:'Move down'}),
+      button('×',()=>{
+        list.splice(index,1);touched();renderMain();
+        const next=ui.main.querySelector('[data-row="'+scope+':'+Math.min(index,list.length-1)+'"] input')||ui.main.querySelector('[data-field="add-'+(scope==='vision'?'vision':'model')+'"]');
+        if(next)next.focus();
+      },'icon remove',{'aria-label':'Remove '+label,title:'Remove'})));
+}
+function addRow(list,scope,label,key){
+  return button(label,()=>{
+    list.push(normalizeCandidate({}));touched();renderMain();
+    const input=ui.main.querySelector('[data-row="'+scope+':'+(list.length-1)+'"] input');
+    if(input)input.focus();
+  },'btn add',{'data-field':key});
+}
+
+// ---- dialogs -------------------------------------------------------------------
+// Native prompt() and confirm() silently do nothing inside a sandboxed iframe.
+function ask({title,text,confirm='Confirm',cancel='Cancel',danger=false,input=null,validate=null}){
+  return new Promise(resolve=>{
+    const dialog=ui.dialog,box=byId('dialogInput'),error=byId('dialogError'),confirmBtn=byId('dialogConfirm'),cancelBtn=byId('dialogCancel'),form=byId('dialogForm');
+    const opener=document.activeElement;
+    byId('dialogTitle').textContent=title;
+    byId('dialogText').textContent=text;
+    confirmBtn.textContent=confirm;
+    cancelBtn.textContent=cancel;
+    confirmBtn.className='btn '+(danger?'danger':'primary');
+    box.classList.toggle('hide',input===null);
+    box.value=input??'';
+    error.classList.add('hide');
+    const finish=result=>{
+      form.removeEventListener('submit',onSubmit);
+      cancelBtn.removeEventListener('click',onCancel);
+      dialog.removeEventListener('cancel',onEscape);
+      dialog.close();
+      if(opener&&opener.isConnected)opener.focus();
+      resolve(result);
+    };
+    const onSubmit=event=>{
+      event.preventDefault();
+      if(input!==null){
+        const problem=validate?validate(box.value):'';
+        if(problem){error.textContent=problem;error.classList.remove('hide');box.setAttribute('aria-invalid','true');box.focus();return}
+        box.removeAttribute('aria-invalid');
+        finish(box.value);return;
+      }
+      finish(true);
+    };
+    const onCancel=()=>finish(input!==null?null:false);
+    const onEscape=event=>{event.preventDefault();onCancel()};
+    form.addEventListener('submit',onSubmit);
+    cancelBtn.addEventListener('click',onCancel);
+    dialog.addEventListener('cancel',onEscape);
+    box.removeAttribute('aria-invalid');
+    dialog.showModal();
+    if(input!==null){box.focus();box.select()}else cancelBtn.focus();
+  });
+}
+function aliasProblem(value,currentName=''){
+  if(!value.trim())return 'Alias name cannot be empty.';
+  if(/\s/.test(value))return 'Alias names cannot contain spaces.';
+  if(value==='__proto__')return 'That name is reserved. Choose another.';
+  if(value!==currentName&&own(chains,value))return 'That alias already exists.';
+  return '';
+}
+
+// ---- rendering -----------------------------------------------------------------
+function routeLine(alias){
+  const list=chains[alias],strategy=strategyFor(alias);
+  const name=(candidate,className)=>h('span',{class:candidate.model.trim()?className:'none',text:candidate.model.trim()||'(no model)'});
+  const join=(items,separator)=>items.flatMap((item,index)=>index?[h('i',{text:separator}),item]:[item]);
+  const out=[];
+  if(!list.length){out.push(h('span',{class:'none',text:'No models yet'}));return out}
+  if(strategy.type==='fusion'){
+    out.push(...join(list.map(candidate=>name(candidate)),'+'),h('i',{text:'▸ judge'}));
+    out.push(strategy.judge.model.trim()?h('b',{text:strategy.judge.model.trim()}):h('b',{text:(list[0].model.trim()||'first model')+' (first model)'}));
+    if(strategy.read_only_tools.length)out.push(h('small',{text:'Read-only tool calls come straight from '+(list[0].model.trim()||'the first model')+', with no panel or judge.'}));
+    out.push(h('small',{text:'If every panel fails, models answer directly, without the panel step.'}));
+  }else if(strategy.type==='smart'){
+    out.push(h('b',{text:strategy.selector.model.trim()||'(no selector)'}),h('i',{text:'▸ picks from'}),...join(list.map(candidate=>name(candidate)),'/'));
+    out.push(h('small',{text:'Chooses once per user message, then the other models act as fallbacks.'}));
+  }else if(strategy.type==='round-robin'){
+    out.push(...join(list.map(candidate=>name(candidate)),'↻'));
+    out.push(h('small',{text:strategy.rotate_per_request?'Starting model changes on every request, including tool steps.':'Starting model changes per user message. Tool steps stay on one model.'}));
+  }else{
+    out.push(...join(list.map(candidate=>name(candidate)),'→'));
+    out.push(h('small',{text:'Each model gets up to '+plural(attemptLimit(),'try').replace('trys','tries')+', so up to '+plural(attemptLimit()*list.length,'attempt')+' in total.'}));
+  }
+  return out;
+}
+function checksFor(scope){
+  const issues=computeIssues().filter(issue=>issue.alias===scope&&(issue.level==='warn'||saveAttempted));
+  return issues.sort((a,b)=>(a.level==='error'?0:1)-(b.level==='error'?0:1)).map(issue=>h('div',{class:'check '+issue.level},h('span',{text:issue.message}),issue.fix?button(issue.fix.label,issue.fix.run,'btn small'):null));
+}
+function refreshLive(){
+  const scope=view==='settings'?'':selected;
+  const route=byId('route');
+  if(route&&selected)route.replaceChildren(...routeLine(selected));
+  const checks=byId('checks');
+  if(checks)checks.replaceChildren(...checksFor(scope));
+  const errors=new Set(saveAttempted?computeIssues().filter(issue=>issue.level==='error'&&issue.alias===scope).map(issue=>issue.key):[]);
+  for(const el of ui.main.querySelectorAll('[data-field]')){
+    if(errors.has(el.dataset.field))el.setAttribute('aria-invalid','true');else el.removeAttribute('aria-invalid');
+  }
+  renderRail();
+}
+function touched(){
+  dirty=editableState()!==savedState;
+  if(ui.savebar.dataset.kind==='success'||(ui.savebar.dataset.kind==='error'&&!saveAttempted))setMessage('');
+  if(saveAttempted&&ui.savebar.dataset.kind==='error'&&!computeIssues().some(issue=>issue.level==='error'))setMessage('');
+  updateSavebar();
+  refreshLive();
+}
+function renderRail(){
+  const focusedAlias=document.activeElement&&document.activeElement.dataset?document.activeElement.dataset.alias:undefined;
+  const issues=computeIssues();
+  const names=Object.keys(chains).sort((a,b)=>a.localeCompare(b));
+  ui.aliasCount.textContent=String(names.length);
+  ui.aliases.replaceChildren(...names.map(name=>{
+    const strategy=STRATEGIES.find(item=>item.id===strategyFor(name).type)||STRATEGIES[0];
+    const own_=issues.filter(issue=>issue.alias===name);
+    const level=saveAttempted&&own_.some(issue=>issue.level==='error')?'error':own_.some(issue=>issue.level==='warn')?'warn':'';
+    const current=view==='alias'&&name===selected;
+    return h('button',{type:'button',class:'alias','aria-current':current?'true':undefined,'data-alias':name,title:name,onclick:()=>{selected=name;view='alias';if(ui.savebar.dataset.kind!=='error')setMessage('');renderAll();window.scrollTo({top:0});const again=ui.aliases.querySelector('[aria-current=true]');if(again)again.focus()}},
+      h('span',{class:'tag',text:strategy.tag,title:strategy.label}),
+      h('span',{class:'alias-name',text:name}),
+      h('span',{class:'alias-meta'},level?h('span',{class:'flag '+level,role:'img','aria-label':level==='error'?'Has errors':'Has warnings'}):null,h('span',{text:String(chains[name].length),'aria-label':plural(chains[name].length,'model')})));
+  }));
+  if(focusedAlias){const again=[...ui.aliases.children].find(el=>el.dataset.alias===focusedAlias);if(again)again.focus()}
+  ui.settingsLink.setAttribute('aria-current',view==='settings'?'true':'false');
+  const globalIssues=issues.filter(issue=>issue.alias==='');
+  ui.settingsMeta.textContent=globalIssues.length?plural(globalIssues.length,'note'):'';
+  ui.banner.classList.toggle('hide',!hasLoaded||ui.enabled.checked);
+}
+function strategySection(alias){
+  const strategy=strategyFor(alias);
+  const radios=h('div',{class:'strategies',role:'radiogroup','aria-label':'Routing strategy'},STRATEGIES.map(item=>h('label',{class:'strategy'},
+    h('input',{type:'radio',name:'strategy',value:item.id,checked:strategy.type===item.id,onchange:()=>{
+      strategy.type=item.id;touched();renderMain();
+      const checked=ui.main.querySelector('input[name=strategy]:checked');if(checked)checked.focus();
+    }}),h('strong',{text:item.label}),h('span',{text:item.blurb}))));
+  return h('section',{class:'card section'},h('div',{class:'section-head'},h('h3',{class:'section-title',text:'Routing strategy'})),radios,strategyOptions(alias,strategy));
+}
+function strategyOptions(alias,strategy){
+  if(strategy.type==='round-robin'){
+    return h('div',{class:'grid'},
+      field({label:strategy.rotate_per_request?'Requests starting at each model':'User messages starting at each model',value:String(strategy.sticky_limit),type:'number',min:1,max:1000,placeholder:'1–1000',key:'sticky',onInput:value=>{strategy.sticky_limit=Number(value);touched()}}),
+      h('label',{class:'toggle',style:'align-self:end'},h('input',{type:'checkbox',checked:strategy.rotate_per_request,onchange:event=>{strategy.rotate_per_request=event.target.checked;touched();renderMain()}}),h('span',{text:'Rotate on every request, including agent tool steps'})));
+  }
+  if(strategy.type==='smart'){
+    return h('div',{class:'grid'},
+      modelPicker(strategy.selector,{label:'Selector model ID',placeholder:'Search or type a selector model ID…',key:'selector',hint:'A fast, cheap model is enough.'}),
+      field({label:'Selector provider pin',value:strategy.selector.provider,placeholder:'Optional CPA provider ID',onInput:value=>{strategy.selector.provider=value.trim();touched()}}),
+      field({label:'Minimum confidence',value:String(strategy.confidence_threshold),type:'number',min:0.5,max:0.95,step:0.05,placeholder:'0.5–0.95',key:'threshold',hint:'Below this, the configured order is used.',onInput:value=>{strategy.confidence_threshold=Number(value);touched()}}),
+      field({label:'Selector timeout (seconds)',value:strategy.selector_timeout_seconds?String(strategy.selector_timeout_seconds):'',type:'number',min:1,max:120,placeholder:'Blank uses 10',key:'selector-timeout',onInput:value=>{strategy.selector_timeout_seconds=Number(value);touched()}}));
+  }
+  if(strategy.type==='fusion'){
+    return h('div',{class:'grid'},
+      modelPicker(strategy.judge,{label:'Judge model ID (optional)',placeholder:'Blank uses the first model',key:'judge'}),
+      field({label:'Judge provider pin (optional)',value:strategy.judge.provider,placeholder:'Optional CPA provider ID',onInput:value=>{strategy.judge.provider=value.trim();touched()}}),
+      field({label:'Panel timeout (seconds)',value:strategy.panel_timeout_seconds?String(strategy.panel_timeout_seconds):'',type:'number',min:10,max:600,placeholder:'Blank uses 180',key:'panel-timeout',hint:'Long conversations can take minutes without streaming.',onInput:value=>{strategy.panel_timeout_seconds=Number(value);touched()}}),
+      field({label:'Quorum (panels to wait for)',value:strategy.quorum?String(strategy.quorum):'',type:'number',min:0,max:20,placeholder:'Blank waits for all',key:'quorum',onInput:value=>{strategy.quorum=Number(value);touched()}}),
+      field({label:'Quorum grace (seconds)',value:strategy.quorum_grace_seconds?String(strategy.quorum_grace_seconds):'',type:'number',min:0,max:300,placeholder:'Blank uses 15',key:'grace',hint:'How long slower panels get once quorum is met.',onInput:value=>{strategy.quorum_grace_seconds=Number(value);touched()}}));
+  }
+  return null;
+}
+function modelsSection(alias){
+  const list=chains[alias],strategy=strategyFor(alias);
+  const parallel=strategy.type==='fusion';
+  return h('section',{class:'card section'},
+    h('div',{class:'section-head'},
+      h('h3',{class:'section-title',text:parallel?'Fusion panel models':'Candidate models'}),
+      h('span',{class:'section-note'},h('span',{id:'catalogNote',text:modelStatusText}),' · ',button('Model catalog',openSettings,'linkish'))),
+    list.length?h('div',{class:'rows','data-flow':parallel?'parallel':'sequence'},list.map((candidate,index)=>candidateRow(candidate,index,list,'candidate'))):h('div',{class:'inner-empty',text:'Add the first model for this alias.'}),
+    addRow(list,'candidate','＋ Add candidate model','add-model'));
+}
+function visionSection(alias){
+  const strategy=strategyFor(alias),list=strategy.vision_candidates;
+  const section=h('section',{class:'card section'},
+    h('div',{class:'section-head',style:'margin-bottom:4px'},h('h3',{class:'section-title',text:'Image-triggered vision routing'})),
+    h('label',{class:'toggle'},h('input',{type:'checkbox',checked:strategy.vision_enabled,onchange:event=>{strategy.vision_enabled=event.target.checked;touched();renderMain()}}),h('span',{text:'Route image requests to vision models'})));
+  if(!strategy.vision_enabled)return section;
+  section.append(h('p',{class:'help',style:'margin:2px 0 10px',text:'Requests containing an image use this pool instead of the models above. Text-only requests are unchanged.'}));
+  section.append(list.length?h('div',{class:'rows','data-flow':strategy.type==='fusion'?'parallel':'sequence'},list.map((candidate,index)=>candidateRow(candidate,index,list,'vision'))):h('div',{class:'inner-empty',text:'Add a model that accepts images.'}));
+  section.append(addRow(list,'vision','＋ Add vision model','add-vision'));
+  if(strategy.type==='fusion')section.append(h('div',{class:'grid'},
+    modelPicker(strategy.vision_judge,{label:'Vision judge model ID (optional)',placeholder:'Blank uses the first vision model',key:'vision-judge',hint:'Must accept images.'}),
+    field({label:'Vision judge provider pin (optional)',value:strategy.vision_judge.provider,placeholder:'Optional CPA provider ID',onInput:value=>{strategy.vision_judge.provider=value.trim();touched()}})));
+  return section;
+}
+function aliasHead(alias){
+  return h('section',{class:'card head'},
+    h('div',{class:'head-line'},
+      h('h2',{text:alias}),
+      h('div',{class:'head-actions'},button('Rename',renameAlias,'btn small ghost'),button('Delete',deleteAlias,'btn small ghost danger'))),
+    h('div',{class:'route',id:'route','aria-live':'off'},routeLine(alias)),
+    h('div',{class:'checks',id:'checks'}));
+}
+function renderSettings(){
+  ui.main.replaceChildren(
+    h('section',{class:'card head'},h('div',{class:'head-line'},h('h2',{text:'Global settings'})),h('p',{class:'help',text:'These apply to every alias.'}),h('div',{class:'checks',id:'checks'})),
+    h('section',{class:'card section'},
+      h('h3',{class:'section-title',text:'Retry behavior'}),
+      h('div',{class:'grid'},
+        field({label:'Retry on HTTP status codes',value:retryText,placeholder:'403, 429, 500, 502, 503, 504',mono:true,key:'retry',hint:'Only 403, 429, and 5xx are allowed. A context overflow always moves on.',onInput:value=>{retryText=value;touched()}}),
+        field({label:'Attempts per model',value:attemptsText,type:'number',min:1,max:20,placeholder:'1–20',key:'attempts',hint:'Each model gets this many tries before the next one starts. A request a model cannot accept moves on or stops right away.',onInput:value=>{attemptsText=value;touched()}}))),
+    h('section',{class:'card section'},
+      h('h3',{class:'section-title',text:'Silent model limits'}),
+      h('div',{class:'grid'},
+        field({label:'First-byte timeout (seconds)',value:firstByteText,type:'number',min:0,max:1800,placeholder:'Blank uses 120',key:'first-byte',hint:'Streaming. Skips a silent model when another is left. 0 turns this off.',onInput:value=>{firstByteText=value;touched()}}),
+        field({label:'Attempt timeout (seconds)',value:attemptTimeoutText,type:'number',min:0,max:1800,placeholder:'Blank means off',key:'attempt-timeout',hint:'Non-streaming. Measured over the whole response.',onInput:value=>{attemptTimeoutText=value;touched()}}))),
+    catalogSection());
+  refreshLive();
+}
+function catalogSection(){
+  const input=h('input',{type:'password',id:'clientAPIKey',autocomplete:'new-password',placeholder:'CPA client API key',value:clientAPIKey,'aria-describedby':'catalogStatus'});
+  return h('section',{class:'card section'},
+    h('h3',{class:'section-title',text:'Model catalog'}),
+    h('p',{class:'help',text:'Optional. Loads model IDs so the pickers can search them. You can always type an ID. The key stays in this tab until you forget it or close the tab.'}),
+    h('form',{class:'grid',novalidate:true,onsubmit:event=>{event.preventDefault();rememberClientAPIKey(input.value.trim());void loadModels()}},
+      h('div',{class:'field'},h('label',{for:'clientAPIKey',text:'Client API key'}),input),
+      h('div',{class:'save-actions',style:'align-self:end;margin:0'},
+        h('button',{class:'btn primary',type:'submit',text:'Load models'}),
+        button('Forget key',()=>{modelsRequest++;rememberClientAPIKey('');input.value='';availableModels=[];syncCatalog();setModelStatus('Client API key forgotten',false)},'btn ghost'))),
+    h('p',{class:'help',id:'catalogStatus',role:'status',text:modelStatusText,style:modelStatusError?'color:var(--red)':undefined}));
+}
+function renderEmpty(){
+  ui.main.replaceChildren(h('section',{class:'card empty'},h('strong',{text:'Build your first combo'}),h('p',{text:'A combo is one model name your clients use, backed by several real models. Name one to begin.'}),button('Name a combo',()=>ui.newAlias.focus(),'btn primary')));
+}
+function renderLoadError(error){
+  ui.main.replaceChildren(h('section',{class:'card empty'},h('strong',{text:'Could not load saved combos'}),h('p',{text:error instanceof Error?error.message:'Check that CPA management is available.'}),button('↻ Try again',()=>void load().catch(handleLoadError),'btn')));
+}
+function renderMain(){
+  ui.main.style.animation='none';
+  if(view==='settings'){renderSettings();return}
+  if(!selected||!own(chains,selected)){renderEmpty();refreshLive();return}
+  ui.main.replaceChildren(aliasHead(selected),strategySection(selected),modelsSection(selected),visionSection(selected));
+  refreshLive();
+}
+function renderAll(){dirty=hasLoaded&&editableState()!==savedState;renderMain();renderRail();updateSavebar()}
+function openSettings(){view='settings';renderAll();window.scrollTo({top:0});ui.settingsLink.focus()}
+
+// ---- model catalog -------------------------------------------------------------
+function setModelStatus(text,isError){
+  modelStatusText=text;modelStatusError=isError;
+  const note=byId('catalogNote');if(note)note.textContent=text;
+  const status=byId('catalogStatus');if(status){status.textContent=text;status.style.color=isError?'var(--red)':''}
+}
+// Filling one shared list means a late response cannot disturb a field being edited.
+function syncCatalog(){
+  ui.catalog.replaceChildren(...availableModels.map(model=>h('option',{value:model.id,label:model.providers.length?model.providers.join(', '):undefined})));
+}
+async function loadModels(){
+  const request=++modelsRequest;
+  if(!clientAPIKey){setModelStatus('Client API key needed',false);return}
+  setModelStatus('Loading models…',false);
+  try{
+    const response=await send(base+'/v1/models',{headers:{'Authorization':'Bearer '+clientAPIKey}});
+    if(request!==modelsRequest)return;
+    if(response.status===401||response.status===403){rememberClientAPIKey('');const box=byId('clientAPIKey');if(box)box.value='';throw new Error('CPA rejected the client API key.')}
+    if(!response.ok)throw new Error('Model catalog request failed (HTTP '+response.status+').');
+    const payload=await response.json();
+    if(request!==modelsRequest)return;
+    const modelsById=new Map();
+    for(const item of Array.isArray(payload?.data)?payload.data:[]){
+      const id=String(item?.id??'').trim();if(!id)continue;
+      if(!modelsById.has(id))modelsById.set(id,{id,providers:new Set()});
+      const provider=String(item?.owned_by??'').trim();if(provider)modelsById.get(id).providers.add(provider);
+    }
+    availableModels=Array.from(modelsById.values()).map(model=>({id:model.id,providers:Array.from(model.providers).sort()})).sort((a,b)=>a.id.localeCompare(b.id));
+    syncCatalog();
+    setModelStatus(availableModels.length?plural(availableModels.length,'model')+' loaded':'No models found',false);
+  }catch(error){
+    if(request===modelsRequest)setModelStatus(error instanceof Error?error.message:'Model catalog unavailable',true);
+  }
+}
+
+// ---- actions -------------------------------------------------------------------
+function createAlias(value){
+  const name=value.trim(),problem=aliasProblem(name);
+  if(problem){setMessage(problem,'error');ui.newAlias.setAttribute('aria-invalid','true');ui.newAlias.focus();return}
+  ui.newAlias.removeAttribute('aria-invalid');
+  chains[name]=[normalizeCandidate({})];
+  strategyFor(name);
+  selected=name;view='alias';ui.newAlias.value='';
+  setMessage('');
+  renderAll();
+  const input=ui.main.querySelector('[data-row="candidate:0"] input');if(input)input.focus();
+}
+async function renameAlias(){
+  const current=selected;
+  const next=await ask({title:'Rename alias',text:'Clients must use the new name after you save.',confirm:'Rename',input:current,validate:value=>aliasProblem(value,current)});
+  if(next===null||next===current)return;
+  chains[next]=chains[current];strategies[next]=strategyFor(current);
+  delete chains[current];delete strategies[current];
+  selected=next;renderAll();
+}
+async function deleteAlias(){
+  const current=selected;
+  if(!await ask({title:'Delete “'+current+'”?',text:'Clients using this name will stop working after you save.',confirm:'Delete alias',danger:true}))return;
+  delete chains[current];delete strategies[current];
+  selected=Object.keys(chains).sort((a,b)=>a.localeCompare(b))[0]||'';
+  renderAll();
+}
+function focusIssue(issue){
+  view=issue.alias===''?'settings':'alias';
+  if(issue.alias)selected=issue.alias;
+  renderAll();
+  const el=issue.key&&ui.main.querySelector('[data-field="'+issue.key+'"]');
+  if(el){el.focus();el.scrollIntoView({block:'center'})}
+}
+async function save(){
+  if(saving||!hasLoaded)return;
+  saveAttempted=true;
+  tidyBeforeSave();
+  const errors=computeIssues().filter(issue=>issue.level==='error');
+  if(errors.length){
+    const first=errors.find(issue=>issue.alias===(view==='settings'?'':selected))||errors[0];
+    focusIssue(first);
+    setMessage((first.alias?'“'+first.alias+'”: ':'')+first.message+(errors.length>1?' ('+(errors.length-1)+' more)':''),'error');
+    return;
+  }
+  saving=true;updateSavebar();setStatus('busy','Saving…');setMessage('');
+  try{
+    const stored=await fetchConfig();
+    if(canonical(stored)!==loadedRaw){
+      saving=false;updateSavebar();
+      const overwrite=await ask({title:'Settings changed elsewhere',text:'Someone changed these settings after this page loaded. Saving replaces their changes with yours.',confirm:'Overwrite',cancel:'Keep editing',danger:true});
+      if(!overwrite){setStatus('ok','Connected to CPA');setMessage('Not saved. Discard your edits to load the latest settings.','error');return}
+      saving=true;updateSavebar();
+    }
+    // Captured now: anything typed while the request runs must stay marked as unsaved.
+    const snapshot=editableState(),body=buildBody();
+    await managementRequest({method:'PUT',body:JSON.stringify(body)});
+    config=JSON.parse(JSON.stringify(body));
+    savedState=snapshot;
+    saveAttempted=false;
+    try{loadedRaw=canonical(await fetchConfig())}catch{loadedRaw=canonical(body)}
+    saving=false;
+    dirty=editableState()!==savedState;
+    setStatus('ok','Settings saved');
+    setMessage('Saved. CPA is applying the plugin configuration.','success');
+    if(!dirty)renderAll();else refreshLive();
+  }catch(error){
+    if(error instanceof AuthError){openGate(error.message);setStatus('error','Management key rejected');setMessage('Not saved. Reconnect to try again; your edits are still here.','error')}
+    else{setStatus('error','Save failed');setMessage(error instanceof Error?error.message:'Unable to save combo settings.','error')}
+  }finally{saving=false;updateSavebar()}
+}
+async function load(){
+  setStatus('busy','Reading saved settings…');
+  const stored=await fetchConfig();
+  config=stored;
+  loadedRaw=canonical(stored);
+  chains=normalizeChains(config.model_chains);
+  strategies=normalizeStrategies(config.strategies,chains);
+  if(!selected||!own(chains,selected))selected=Object.keys(chains).sort((a,b)=>a.localeCompare(b))[0]||'';
+  retryText=Array.isArray(config.retry_statuses)&&config.retry_statuses.length?config.retry_statuses.join(', '):DEFAULT_RETRIES.join(', ');
+  attemptsText=String(config.max_attempts??DEFAULT_ATTEMPTS);
+  firstByteText=config.first_byte_timeout_seconds===undefined?'':String(config.first_byte_timeout_seconds);
+  attemptTimeoutText=config.attempt_timeout_seconds===undefined?'':String(config.attempt_timeout_seconds);
+  ui.enabled.checked=config.enabled===true;
+  ui.enabled.disabled=false;ui.newAlias.disabled=false;ui.aliasForm.querySelector('button').disabled=false;ui.settingsLink.disabled=false;
+  hasLoaded=true;saveAttempted=false;
+  savedState=editableState();
+  setMessage('');
+  renderAll();
+  setStatus('ok','Connected to CPA');
+  void loadModels();
+}
+// Nothing can be edited until settings load, because saving from an empty form would
+// replace the stored configuration with nothing.
+function lockEditing(){ui.enabled.disabled=true;ui.newAlias.disabled=true;ui.aliasForm.querySelector('button').disabled=true;ui.settingsLink.disabled=true}
+function openGate(message){
+  ui.gate.classList.add('open');
+  ui.gateError.textContent=message||'';
+  ui.gateError.classList.toggle('hide',!message);
+  ui.key.focus();
+}
+function handleLoadError(error){
+  if(error instanceof AuthError){setStatus('error','Management key rejected');openGate(error.message);return}
+  setStatus('error','Cannot reach CPA');
+  renderLoadError(error);
+}
+
+// ---- wiring --------------------------------------------------------------------
+ui.aliasForm.addEventListener('submit',event=>{event.preventDefault();createAlias(ui.newAlias.value)});
+ui.newAlias.addEventListener('input',()=>{ui.newAlias.removeAttribute('aria-invalid');if(ui.savebar.dataset.kind==='error'&&!saveAttempted)setMessage('')});
+ui.settingsLink.addEventListener('click',openSettings);
+ui.enabled.addEventListener('change',touched);
+ui.save.addEventListener('click',()=>void save());
+ui.discard.addEventListener('click',async()=>{
+  if(!await ask({title:'Discard unsaved edits?',text:'This reloads the saved settings from CPA.',confirm:'Discard edits',cancel:'Keep editing',danger:true}))return;
+  try{await load()}catch(error){if(error instanceof AuthError)openGate(error.message);else setMessage(error instanceof Error?error.message:'Unable to reload settings.','error')}
+});
+byId('keyForm').addEventListener('submit',async event=>{
+  event.preventDefault();
+  const key=ui.key.value.trim();
+  if(!key){openGate('Enter the CPA management key.');return}
+  managementKey=key;
+  ui.gateError.classList.add('hide');
+  try{
+    // Reconnecting must not throw away edits made before the key was rejected.
+    if(hasLoaded&&dirty)await fetchConfig();else await load();
+    ui.gate.classList.remove('open');
+    ui.key.value='';
+    setStatus('ok','Connected to CPA');
+  }catch(error){
+    if(error instanceof AuthError)openGate(error.message);
+    else{ui.gate.classList.remove('open');handleLoadError(error)}
+  }
+});
 window.addEventListener('beforeunload',event=>{if(dirty){event.preventDefault();event.returnValue=''}});
+
+lockEditing();
+updateSavebar();
+managementKey=rememberedKey();
+clientAPIKey=readClientAPIKey();
+if(managementKey)void load().catch(handleLoadError);
+else{setStatus('error','Management key required');openGate('')}
 })();
 </script>
 </body>
