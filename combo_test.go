@@ -4410,3 +4410,149 @@ func TestDashboardDoesNotExposeAdvancedTuning(t *testing.T) {
 		}
 	}
 }
+
+const toolImageURL = "data:image/png;base64,SECRETIMAGEDATA"
+
+func toolImageBody(extra string) []byte {
+	return []byte(`{"model":"combo","stream":true,"messages":[{"role":"user","content":"look"},{"role":"assistant","content":null,"tool_calls":[{"id":"a","type":"function","function":{"name":"read_file","arguments":"{}"}},{"id":"b","type":"function","function":{"name":"read_file","arguments":"{}"}}]},{"role":"tool","tool_call_id":"a","content":[{"type":"text","text":"file a"},{"type":"image_url","image_url":{"url":"` + toolImageURL + `","detail":"high"}}]},{"role":"tool","tool_call_id":"b","content":"plain b"}` + extra + `]}`)
+}
+
+func TestMoveToolResultImages(t *testing.T) {
+	got, moved, size := moveToolResultImages(toolImageBody(`,{"role":"user","content":"next"}`))
+	if moved != 1 || size != len(toolImageURL) {
+		t.Fatalf("moved=%d size=%d", moved, size)
+	}
+	var payload struct {
+		Stream   bool             `json:"stream"`
+		Messages []map[string]any `json:"messages"`
+	}
+	if err := json.Unmarshal(got, &payload); err != nil {
+		t.Fatal(err)
+	}
+	if len(payload.Messages) != 6 || !payload.Stream {
+		t.Fatalf("messages = %s", got)
+	}
+	if want := "file a\n" + toolImageMovedNote; payload.Messages[2]["content"] != want {
+		t.Fatalf("tool content = %#v", payload.Messages[2]["content"])
+	}
+	if payload.Messages[2]["tool_call_id"] != "a" || payload.Messages[3]["content"] != "plain b" {
+		t.Fatalf("tool messages changed: %s", got)
+	}
+	inserted := payload.Messages[4]
+	parts, _ := inserted["content"].([]any)
+	if inserted["role"] != "user" || len(parts) != 2 {
+		t.Fatalf("image message must follow the whole run of tool results: %s", got)
+	}
+	image, _ := parts[1].(map[string]any)
+	if !reflect.DeepEqual(image["image_url"], map[string]any{"url": toolImageURL, "detail": "high"}) {
+		t.Fatalf("image part changed: %#v", image)
+	}
+	if payload.Messages[5]["content"] != "next" {
+		t.Fatalf("later messages changed: %s", got)
+	}
+}
+
+func TestMoveToolResultImagesEndOfConversationAndSeparateRuns(t *testing.T) {
+	body := []byte(`{"messages":[{"role":"tool","tool_call_id":"a","content":[{"type":"image_url","image_url":{"url":"one"}}]},{"role":"assistant","content":"ok"},{"role":"tool","tool_call_id":"b","content":[{"type":"image_url","image_url":{"url":"two"}},{"type":"image_url","image_url":{"url":"three"}}]}]}`)
+	got, moved, size := moveToolResultImages(body)
+	if moved != 3 || size != len("one")+len("two")+len("three") {
+		t.Fatalf("moved=%d size=%d", moved, size)
+	}
+	var payload struct {
+		Messages []map[string]any `json:"messages"`
+	}
+	if err := json.Unmarshal(got, &payload); err != nil {
+		t.Fatal(err)
+	}
+	var roles []string
+	for _, message := range payload.Messages {
+		roles = append(roles, fmt.Sprint(message["role"]))
+	}
+	if !reflect.DeepEqual(roles, []string{"tool", "user", "assistant", "tool", "user"}) {
+		t.Fatalf("roles = %v", roles)
+	}
+	if payload.Messages[0]["content"] != toolImageMovedNote {
+		t.Fatalf("image-only tool result = %#v", payload.Messages[0]["content"])
+	}
+	if parts, _ := payload.Messages[4]["content"].([]any); len(parts) != 3 {
+		t.Fatalf("last image message = %#v", payload.Messages[4])
+	}
+}
+
+func TestMoveToolResultImagesKeepsOtherContent(t *testing.T) {
+	unchanged := []string{
+		`not json with image_url`,
+		`{"input":[{"type":"function_call_output","output":[{"type":"image_url"}]}]}`,
+		`{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"x"}}]}]}`,
+		`{"messages":[{"role":"tool","content":"mentions image_url as text"}]}`,
+		`{"messages":[{"role":"tool","content":[{"type":"text","text":"image_url"}]}]}`,
+		`{"messages":[{"role":"user","content":"no images"}]}`,
+	}
+	for _, body := range unchanged {
+		got, moved, _ := moveToolResultImages([]byte(body))
+		if moved != 0 || string(got) != body {
+			t.Errorf("changed %q to %q", body, got)
+		}
+	}
+	mixed, moved, _ := moveToolResultImages([]byte(`{"messages":[{"role":"tool","content":[{"type":"custom","x":1},{"type":"image_url","image_url":{"url":"u"}}]}]}`))
+	if moved != 1 || !strings.Contains(string(mixed), `"type":"custom"`) || !strings.Contains(string(mixed), toolImageMovedNote) {
+		t.Fatalf("mixed = %s", mixed)
+	}
+}
+
+func TestEveryStrategyMovesToolImages(t *testing.T) {
+	body := toolImageBody("")
+	check := func(t *testing.T, sent []byte) {
+		t.Helper()
+		var payload struct {
+			Messages []map[string]any `json:"messages"`
+		}
+		if err := json.Unmarshal(sent, &payload); err != nil {
+			t.Fatal(err)
+		}
+		for _, message := range payload.Messages {
+			if message["role"] == "tool" && strings.Contains(fmt.Sprint(message["content"]), "SECRETIMAGEDATA") {
+				t.Fatalf("image still in tool result: %s", sent)
+			}
+		}
+		if !strings.Contains(string(sent), "SECRETIMAGEDATA") {
+			t.Fatalf("image was lost: %s", sent)
+		}
+	}
+	for _, strategy := range []comboStrategy{{Type: "fallback"}, {Type: "round-robin", StickyLimit: 1}, {Type: "smart", Selector: comboCandidate{Model: "selector-model"}}, {Type: "fusion"}} {
+		t.Run(strategy.Type+"/stream", func(t *testing.T) {
+			resetComboTurns()
+			h := newFusionStreamHost()
+			h.streams["gpt-coder"] = []string{"data: ok\n\n"}
+			h.panels["selector-model"] = func() (json.RawMessage, error) {
+				return json.Marshal(fusionTestText(`{"choice":"gpt-coder","confidence":0.95}`))
+			}
+			if err := runFusionStream(t, h, strategy, string(body)); err != nil {
+				t.Fatal(err)
+			}
+			check(t, h.bodies["gpt-coder"])
+		})
+	}
+	var captured []byte
+	_, err := executeHostModelWithHost(context.Background(), rpcExecutorRequest{}, comboCandidate{Model: "m"}, body, "cb", func(_ string, payload any) (json.RawMessage, error) {
+		captured = payload.(hostModelExecutionRequest).Body
+		return json.Marshal(fusionTestText("ok"))
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	check(t, captured)
+}
+
+func TestToolImageLogHasSizesOnly(t *testing.T) {
+	logs := captureComboLogs(t, func() { candidateRequestBody(comboCandidate{Model: "m"}, toolImageBody("")) })
+	if !strings.Contains(logs, "event=tool_images_moved") || !strings.Contains(logs, "images=1") {
+		t.Fatalf("logs = %s", logs)
+	}
+	if strings.Contains(logs, "SECRETIMAGEDATA") {
+		t.Fatalf("log leaked image data: %s", logs)
+	}
+	if logs := captureComboLogs(t, func() { candidateRequestBody(comboCandidate{Model: "m"}, []byte(`{"messages":[]}`)) }); logs != "" {
+		t.Fatalf("logged with nothing moved: %s", logs)
+	}
+}

@@ -542,7 +542,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.6.0", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.6.1", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -1614,6 +1614,7 @@ func executeHostModel(ctx context.Context, req rpcExecutorRequest, candidate com
 }
 
 func executeHostModelWithHost(ctx context.Context, req rpcExecutorRequest, candidate comboCandidate, body []byte, callbackID string, hostCall rpcHostCall) (pluginapi.HostModelExecutionResponse, error) {
+	body = candidateRequestBody(candidate, body)
 	raw, err := hostCall(pluginabi.MethodHostModelExecute, hostModelExecutionRequest{
 		HostModelExecutionRequest: pluginapi.HostModelExecutionRequest{EntryProtocol: req.SourceFormat, ExitProtocol: candidateProtocol(candidate, req.SourceFormat), Model: candidate.Model, ForcedProvider: candidate.Provider, Body: body, Headers: req.Headers, Query: req.Query, Alt: req.Alt, CallerScope: "plugin-executor"},
 		HostCallbackID:            callbackID,
@@ -1729,6 +1730,7 @@ func executeCandidateStream(ctx context.Context, req rpcExecutorRequest, candida
 }
 
 func executeCandidateStreamWithHost(ctx context.Context, req rpcExecutorRequest, candidate comboCandidate, body []byte, callbackID string, emit func([]byte) error, hostCall rpcHostCall) error {
+	body = candidateRequestBody(candidate, body)
 	request, err := rewriteRequestModel(body, candidate.Model)
 	if err != nil {
 		return err
