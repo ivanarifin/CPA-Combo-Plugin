@@ -542,7 +542,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.6.1", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.6.2", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -723,6 +723,10 @@ func executeFallback(ctx context.Context, candidates []comboCandidate, cfg combo
 			if resp.StatusCode < http.StatusOK || resp.StatusCode >= http.StatusMultipleChoices {
 				return pluginapi.HostModelExecutionResponse{}, invalidHTTPStatus("host model execution", resp.StatusCode)
 			}
+			if responseBodyIsEmpty(resp.Body) {
+				lastErr = errEmptyResponse
+				continue
+			}
 			return resp, nil
 		}
 	}
@@ -764,7 +768,7 @@ func callWithAttemptTimeout(ctx context.Context, timeout time.Duration, call hos
 }
 
 func shouldTryNextCandidate(err error, cfg comboConfig) bool {
-	return retryable(err, cfg.RetryStatuses) || errors.Is(err, errCandidateTimeout) || isContextOverflow(err)
+	return retryable(err, cfg.RetryStatuses) || errors.Is(err, errCandidateTimeout) || errors.Is(err, errEmptyResponse) || isContextOverflow(err)
 }
 
 // isContextOverflow recognizes a request too large for this model. It is a client error
@@ -1817,11 +1821,15 @@ func executeStreamFallback(ctx context.Context, candidates []comboCandidate, cfg
 				return emit(chunk)
 			}
 			finalAttempt := index == len(candidates)-1 && attempt == attempts
+			peek := &streamOutputPeek{emit: guarded}
 			var err error
 			if firstByteLimit > 0 && !finalAttempt {
-				err = runWithFirstByteLimit(ctx, firstByteLimit, candidate, run, guarded)
+				err = runWithFirstByteLimit(ctx, firstByteLimit, candidate, run, peek.write)
 			} else {
-				err = run(ctx, candidate, guarded)
+				err = run(ctx, candidate, peek.write)
+			}
+			if err == nil {
+				err = peek.finish()
 			}
 			if err == nil {
 				return nil

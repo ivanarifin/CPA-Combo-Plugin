@@ -4556,3 +4556,257 @@ func TestToolImageLogHasSizesOnly(t *testing.T) {
 		t.Fatalf("logged with nothing moved: %s", logs)
 	}
 }
+
+func TestStreamHasOutput(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		want bool
+	}{
+		{"chat role only", `{"choices":[{"delta":{"role":"assistant","content":""}}]}`, false},
+		{"chat finish only", "data: {\"choices\":[{\"delta\":{},\"finish_reason\":\"stop\"}]}\n\ndata: [DONE]\n\n", false},
+		{"chat usage only", `{"choices":[],"usage":{"total_tokens":1}}`, false},
+		{"chat text", `{"choices":[{"delta":{"content":"hi"}}]}`, true},
+		{"chat tool call", `{"choices":[{"delta":{"tool_calls":[{"index":0}]}}]}`, true},
+		{"chat reasoning shows early", `{"choices":[{"delta":{"reasoning_content":"thinking"}}]}`, true},
+		{"bare then done", `{"choices":[{"delta":{}}]}[DONE]`, false},
+		{"gemini blank", "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"\"}]},\"finishReason\":\"MALFORMED_FUNCTION_CALL\"}]}\n\n", false},
+		{"gemini no parts", `{"candidates":[{"finishReason":"STOP"}]}`, false},
+		{"gemini text", `{"candidates":[{"content":{"parts":[{"text":"hi"}]}}]}`, true},
+		{"gemini call", `{"candidates":[{"content":{"parts":[{"functionCall":{"name":"x"}}]}}]}`, true},
+		{"gemini thought shows early", `{"candidates":[{"content":{"parts":[{"thought":true,"text":"t"}]}}]}`, true},
+		{"claude setup", "event: message_start\ndata: {\"type\":\"message_start\"}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\n", false},
+		{"claude stop only", "data: {\"type\":\"message_delta\"}\n\ndata: {\"type\":\"message_stop\"}\n\n", false},
+		{"claude text", "data: {\"type\":\"content_block_delta\",\"delta\":{\"type\":\"text_delta\",\"text\":\"hi\"}}\n\n", true},
+		{"claude thinking", "data: {\"type\":\"content_block_delta\",\"delta\":{\"thinking\":\"t\"}}\n\n", true},
+		{"claude tool", "data: {\"type\":\"content_block_start\",\"content_block\":{\"type\":\"tool_use\",\"name\":\"x\"}}\n\n", true},
+		{"responses setup", "data: {\"type\":\"response.created\"}\n\ndata: {\"type\":\"response.in_progress\"}\n\n", false},
+		{"responses blank end", "data: {\"type\":\"response.completed\",\"response\":{\"output\":[]}}\n\n", false},
+		{"responses text", "data: {\"type\":\"response.output_text.delta\",\"delta\":\"hi\"}\n\n", true},
+		{"responses reasoning", "data: {\"type\":\"response.reasoning_summary_text.delta\",\"delta\":\"t\"}\n\n", true},
+		{"responses call", "data: {\"type\":\"response.output_item.added\",\"item\":{\"type\":\"function_call\"}}\n\n", true},
+		{"error frame passes", "data: {\"error\":{\"message\":\"x\"}}\n\n", true},
+		{"error alongside empty choices passes", `{"error":{"message":"x"},"choices":[]}`, true},
+		{"unknown json passes", `{"something":"new"}`, true},
+		{"unknown event type passes", "data: {\"type\":\"brand_new\"}\n\n", true},
+		{"not json passes", "data: ok\n\n", true},
+		{"bare words pass", "boom", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := streamHasOutput([]byte(tt.raw), true); got != tt.want {
+				t.Fatalf("got %v", got)
+			}
+		})
+	}
+	if !streamHasOutput([]byte("data: {\"choices\":[{\"delta\":{\"content\":\"hi\"}}]}"), false) {
+		t.Fatal("a complete final frame must not wait for a newline")
+	}
+	if !streamHasOutput([]byte("data: plain words"), false) {
+		t.Fatal("plain text frames must pass straight through")
+	}
+	if streamHasOutput([]byte("data: {\"choi"), false) {
+		t.Fatal("half an SSE frame must wait for the next chunk")
+	}
+	if streamHasOutput([]byte(`{"choices":[{"del`), false) {
+		t.Fatal("half a JSON value must wait for the next chunk")
+	}
+}
+
+func TestStreamOutputPeekHoldsThenFlushesInOrder(t *testing.T) {
+	var emitted []string
+	peek := &streamOutputPeek{emit: func(chunk []byte) error {
+		emitted = append(emitted, string(chunk))
+		return nil
+	}}
+	role := `{"choices":[{"delta":{"role":"assistant"}}]}`
+	first := `{"choices":[{"delta":{"content":"a"}}]}`
+	second := `{"choices":[{"delta":{"content":"b"}}]}`
+	if err := peek.write([]byte(role)); err != nil || len(emitted) != 0 {
+		t.Fatalf("metadata was not held: %v %v", err, emitted)
+	}
+	_ = peek.write([]byte(first))
+	_ = peek.write([]byte(second))
+	if !reflect.DeepEqual(emitted, []string{role, first, second}) {
+		t.Fatalf("emitted = %q", emitted)
+	}
+	if err := peek.finish(); err != nil {
+		t.Fatal(err)
+	}
+	split := &streamOutputPeek{emit: func(chunk []byte) error {
+		emitted = append(emitted, string(chunk))
+		return nil
+	}}
+	emitted = nil
+	_ = split.write([]byte("data: {\"choices\":[{\"delta\":{\"con"))
+	if len(emitted) != 0 {
+		t.Fatal("flushed on half a frame")
+	}
+	_ = split.write([]byte("tent\":\"hi\"}}]}\n\n"))
+	if len(emitted) != 2 {
+		t.Fatalf("emitted = %q", emitted)
+	}
+	none := &streamOutputPeek{emit: func([]byte) error { return nil }}
+	if err := none.finish(); err != nil {
+		t.Fatalf("a stream with no chunks is left to the host: %v", err)
+	}
+}
+
+func TestBlankStreamMovesOnWithoutReachingClient(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 2
+	cfg.RetryStatuses = []int{503}
+	blank := "data: {\"candidates\":[{\"content\":{\"parts\":[{\"text\":\"\"}]},\"finishReason\":\"MALFORMED_FUNCTION_CALL\"}]}\n\n"
+	var calls, emitted []string
+	err := executeStreamFallback(context.Background(), []comboCandidate{{Model: "a"}, {Model: "b"}}, cfg, func(_ context.Context, candidate comboCandidate, emit func([]byte) error) error {
+		calls = append(calls, candidate.Model)
+		if candidate.Model == "a" {
+			return emit([]byte(blank))
+		}
+		return emit([]byte(`{"candidates":[{"content":{"parts":[{"text":"real"}]}}]}`))
+	}, func(chunk []byte) error {
+		emitted = append(emitted, string(chunk))
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(calls, []string{"a", "a", "b"}) || len(emitted) != 1 || !strings.Contains(emitted[0], "real") {
+		t.Fatalf("calls=%v emitted=%q", calls, emitted)
+	}
+	calls, emitted = nil, nil
+	err = executeStreamFallback(context.Background(), []comboCandidate{{Model: "a"}}, cfg, func(_ context.Context, candidate comboCandidate, emit func([]byte) error) error {
+		calls = append(calls, candidate.Model)
+		return emit([]byte(blank))
+	}, func(chunk []byte) error {
+		emitted = append(emitted, string(chunk))
+		return nil
+	})
+	if !errors.Is(err, errEmptyResponse) || len(emitted) != 0 || len(calls) != 2 {
+		t.Fatalf("err=%v calls=%v emitted=%q", err, calls, emitted)
+	}
+	if status, ok := AsStatusError(err); !ok || status.Code != http.StatusBadGateway {
+		t.Fatalf("status = %+v", status)
+	}
+}
+
+func TestStreamErrorAfterOnlyMetadataStillFallsBack(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 1
+	cfg.RetryStatuses = []int{503}
+	var emitted []string
+	err := executeStreamFallback(context.Background(), []comboCandidate{{Model: "a"}, {Model: "b"}}, cfg, func(_ context.Context, candidate comboCandidate, emit func([]byte) error) error {
+		if candidate.Model == "a" {
+			_ = emit([]byte(`{"choices":[{"delta":{"role":"assistant"}}]}`))
+			return StatusError{Code: 503}
+		}
+		return emit([]byte(`{"choices":[{"delta":{"content":"from b"}}]}`))
+	}, func(chunk []byte) error {
+		emitted = append(emitted, string(chunk))
+		return nil
+	})
+	if err != nil || len(emitted) != 1 || !strings.Contains(emitted[0], "from b") {
+		t.Fatalf("err=%v emitted=%q (a role chunk must not block fallback or mix models)", err, emitted)
+	}
+}
+
+func TestSilentMetadataStillCountsAsAliveForFirstByteLimit(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 1
+	cfg.FirstByteTimeoutSeconds = 1
+	var mu sync.Mutex
+	var calls []string
+	var emitted []string
+	err := executeStreamFallback(context.Background(), []comboCandidate{{Model: "slow-thinker"}, {Model: "unused"}}, cfg, func(_ context.Context, candidate comboCandidate, emit func([]byte) error) error {
+		mu.Lock()
+		calls = append(calls, candidate.Model)
+		mu.Unlock()
+		if err := emit([]byte(`{"choices":[{"delta":{"role":"assistant"}}]}`)); err != nil {
+			return err
+		}
+		time.Sleep(1300 * time.Millisecond)
+		return emit([]byte(`{"choices":[{"delta":{"content":"late answer"}}]}`))
+	}, func(chunk []byte) error {
+		mu.Lock()
+		defer mu.Unlock()
+		emitted = append(emitted, string(chunk))
+		return nil
+	})
+	mu.Lock()
+	defer mu.Unlock()
+	if err != nil || !reflect.DeepEqual(calls, []string{"slow-thinker"}) || len(emitted) != 2 {
+		t.Fatalf("err=%v calls=%v emitted=%q", err, calls, emitted)
+	}
+}
+
+func TestResponseBodyIsEmpty(t *testing.T) {
+	tests := []struct {
+		body string
+		want bool
+	}{
+		{`{"choices":[{"message":{"role":"assistant","content":""}}]}`, true},
+		{`{"choices":[{"message":{"content":null}}]}`, true},
+		{`{"choices":[]}`, true},
+		{`{"candidates":[{"content":{"parts":[{"text":""}]}}]}`, true},
+		{`{"output":[]}`, true},
+		{`{"id":"x","object":"response","status":"completed","usage":{"total_tokens":2}}`, true},
+		{`{"object":"response","output":[{"type":"message","content":[{"type":"output_text","text":"hi"}]}]}`, false},
+		{`{"role":"assistant","content":[]}`, true},
+		{`{"choices":[{"message":{"content":"hi"}}]}`, false},
+		{`{"choices":[{"message":{"tool_calls":[{"id":"c"}]}}]}`, false},
+		{`{"output":[{"type":"function_call","name":"x"}]}`, false},
+		{`{"role":"assistant","content":[{"type":"text","text":"hi"}]}`, false},
+		{`{"ok":true}`, false},
+		{`not json`, false},
+		{``, false},
+	}
+	for _, tt := range tests {
+		if got := responseBodyIsEmpty([]byte(tt.body)); got != tt.want {
+			t.Errorf("%s = %v", tt.body, got)
+		}
+	}
+}
+
+func TestBlankResponseMovesOnNonStreaming(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 2
+	cfg.RetryStatuses = []int{503}
+	var calls []string
+	got, err := executeFallback(context.Background(), []comboCandidate{{Model: "a"}, {Model: "b"}}, cfg, []byte(`{"model":"x"}`), "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		calls = append(calls, candidate.Model)
+		if candidate.Model == "a" {
+			return fusionTestText(""), nil
+		}
+		return fusionTestText("real"), nil
+	})
+	if err != nil || !strings.Contains(string(got.Body), "real") || !reflect.DeepEqual(calls, []string{"a", "a", "b"}) {
+		t.Fatalf("err=%v calls=%v", err, calls)
+	}
+	_, err = executeFallback(context.Background(), []comboCandidate{{Model: "a"}}, cfg, []byte(`{"model":"x"}`), "cb", func(context.Context, comboCandidate, []byte, string) (pluginapi.HostModelExecutionResponse, error) {
+		return fusionTestText(""), nil
+	})
+	if !errors.Is(err, errEmptyResponse) {
+		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestFusionBlankJudgeFallsBackToPanel(t *testing.T) {
+	h := newFusionStreamHost()
+	blank := "data: {\"choices\":[{\"delta\":{\"role\":\"assistant\",\"content\":\"\"},\"finish_reason\":\"stop\"}]}\n\n"
+	h.streams["judge-model"] = []string{blank}
+	h.streams["gpt-coder"] = []string{"data: {\"choices\":[{\"delta\":{\"content\":\"answer\"}}]}\n\n"}
+	if err := runFusionStream(t, h, comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}, fusionStreamToolBody); err != nil {
+		t.Fatal(err)
+	}
+	if len(h.emitted) != 1 || !strings.Contains(h.emitted[0], "answer") {
+		t.Fatalf("emitted = %q", h.emitted)
+	}
+}
+
+func TestJudgePromptWeighsConsensusAndBlindSpots(t *testing.T) {
+	for _, want := range []string{"where they agree (a signal, not proof)", "contradict", "only one of them noticed", "all of them missed", "Evaluate, do not vote"} {
+		if !strings.Contains(fusionJudgeInstructions, want) {
+			t.Errorf("prompt lost %q", want)
+		}
+	}
+}
