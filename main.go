@@ -174,17 +174,22 @@ type comboConfig struct {
 }
 
 type comboStrategy struct {
-	Type                   string            `yaml:"type"`
-	StickyLimit            int               `yaml:"sticky_limit"`
-	Selector               comboCandidate    `yaml:"selector"`
-	Judge                  comboCandidate    `yaml:"judge"`
-	ConfidenceThreshold    float64           `yaml:"confidence_threshold"`
-	VisionEnabled          bool              `yaml:"vision_enabled"`
-	VisionCandidates       []comboCandidate  `yaml:"vision_candidates"`
-	VisionJudge            comboCandidate    `yaml:"vision_judge"`
-	PanelTimeoutSeconds    int               `yaml:"panel_timeout_seconds"`
-	Quorum                 int               `yaml:"quorum"`
-	QuorumGraceSeconds     int               `yaml:"quorum_grace_seconds"`
+	Type                string           `yaml:"type"`
+	StickyLimit         int              `yaml:"sticky_limit"`
+	Selector            comboCandidate   `yaml:"selector"`
+	Judge               comboCandidate   `yaml:"judge"`
+	ConfidenceThreshold float64          `yaml:"confidence_threshold"`
+	VisionEnabled       bool             `yaml:"vision_enabled"`
+	VisionCandidates    []comboCandidate `yaml:"vision_candidates"`
+	VisionJudge         comboCandidate   `yaml:"vision_judge"`
+	PanelTimeoutSeconds int              `yaml:"panel_timeout_seconds"`
+	Quorum              int              `yaml:"quorum"`
+	QuorumGraceSeconds  int              `yaml:"quorum_grace_seconds"`
+	// FusionRounds is how many proposal rounds panels run (default 2). Later rounds
+	// show each panel the anonymized proposals so it can correct or improve its answer.
+	FusionRounds int `yaml:"fusion_rounds"`
+	// FusionReasoning defaults to true; set false to keep panel reasoning from the judge.
+	FusionReasoning        *bool             `yaml:"fusion_reasoning"`
 	ReadOnlyTools          []string          `yaml:"read_only_tools"`
 	RotatePerRequest       bool              `yaml:"rotate_per_request"`
 	SelectorTimeoutSeconds int               `yaml:"selector_timeout_seconds"`
@@ -542,7 +547,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.6.2", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.7.0", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -1372,7 +1377,8 @@ func prepareFusionPromptObserved(ctx context.Context, requestID, alias string, s
 	if err != nil {
 		return nil, comboCandidate{}, err
 	}
-	answers, err := fusionProposalsPayload(requestID, alias, proposals)
+	proposals = runFusionRounds(ctx, requestID, alias, strategy, candidates, proposals, body, callbackID, newFusionHistoryFilter(strategy, candidates).wrap(call))
+	answers, err := fusionProposalsPayload(requestID, alias, strategy, proposals)
 	if err != nil {
 		return nil, comboCandidate{}, err
 	}
@@ -1480,71 +1486,8 @@ func fusionPanelAnswer(raw []byte) string {
 // untyped nil when there are none: an empty typed slice inside `any` is not nil, which
 // would make text-only and thinking-only replies look like tool-call proposals.
 func fusionPanelParts(raw []byte) (string, any) {
-	var payload map[string]any
-	if json.Unmarshal(raw, &payload) != nil || payload == nil {
-		return strings.TrimSpace(string(raw)), nil
-	}
-	if choices, ok := payload["choices"].([]any); ok && len(choices) > 0 {
-		choice, _ := choices[0].(map[string]any)
-		message, _ := choice["message"].(map[string]any)
-		content := valueText(message["content"])
-		calls := message["tool_calls"]
-		if calls == nil {
-			calls = message["function_call"]
-		}
-		return strings.TrimSpace(content), normalizeFusionCalls(calls)
-	}
-	if output, ok := payload["output"].([]any); ok {
-		var texts []string
-		var calls []any
-		for _, rawItem := range output {
-			item, _ := rawItem.(map[string]any)
-			switch item["type"] {
-			case "message":
-				if text := responseOutputText(item["content"]); text != "" {
-					texts = append(texts, text)
-				}
-			case "function_call", "computer_call", "web_search_call":
-				calls = append(calls, item)
-			}
-		}
-		return strings.TrimSpace(strings.Join(texts, "\n")), normalizeFusionCalls(calls)
-	}
-	if candidates, ok := payload["candidates"].([]any); ok && len(candidates) > 0 {
-		candidate, _ := candidates[0].(map[string]any)
-		content, _ := candidate["content"].(map[string]any)
-		parts, _ := content["parts"].([]any)
-		var texts []string
-		var calls []any
-		for _, rawPart := range parts {
-			part, _ := rawPart.(map[string]any)
-			if thought, _ := part["thought"].(bool); thought {
-				continue
-			}
-			if text, ok := part["text"].(string); ok {
-				texts = append(texts, text)
-			}
-			if functionCall := part["functionCall"]; functionCall != nil {
-				calls = append(calls, functionCall)
-			}
-		}
-		return strings.TrimSpace(strings.Join(texts, "\n")), normalizeFusionCalls(calls)
-	}
-	if content, ok := payload["content"].([]any); ok {
-		var texts []string
-		var calls []any
-		for _, rawBlock := range content {
-			block, _ := rawBlock.(map[string]any)
-			if text, ok := block["text"].(string); ok && block["type"] == "text" {
-				texts = append(texts, text)
-			}
-			if block["type"] == "tool_use" {
-				calls = append(calls, block)
-			}
-		}
-		return strings.TrimSpace(strings.Join(texts, "\n")), normalizeFusionCalls(calls)
-	}
-	return strings.TrimSpace(responseText(raw)), nil
+	text, calls, _ := fusionPanelPartsWithReasoning(raw)
+	return text, calls
 }
 
 func normalizeFusionCalls(calls any) any {

@@ -1049,7 +1049,7 @@ func TestExecuteStreamRPCFallbackOnRetryableStartStatusClosesFailedStream(t *tes
 
 func TestFusionStreamToolRequestUsesJudgeStream(t *testing.T) {
 	cfg := testConfig()
-	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}}
+	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Model: "judge-model"}}}
 	currentConfig.Store(cfg)
 	var panelCalls []string
 	var streamCalls []string
@@ -1615,7 +1615,7 @@ func TestFusionRunsPanelsInParallelAndUsesJudge(t *testing.T) {
 	cfg := testConfig()
 	cfg.MaxAttempts = 2
 	candidates := []comboCandidate{{Provider: "p1", Model: "panel-a"}, {Provider: "p2", Model: "panel-b"}}
-	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Provider: "judge-provider", Model: "judge-model"}}
+	strategy := comboStrategy{Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Provider: "judge-provider", Model: "judge-model"}}
 	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"solve this"}],"stream":true}`)
 	arrived := make(chan struct{}, 2)
 	release := make(chan struct{})
@@ -1672,7 +1672,7 @@ func TestFusionRunsPanelsInParallelAndUsesJudge(t *testing.T) {
 }
 
 func TestFusionToolEnabledRequestRunsPanelsAndJudge(t *testing.T) {
-	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
+	strategy := comboStrategy{Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Model: "judge-model"}}
 	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
 	body := []byte(`{"model":"combo-coding","messages":[{"role":"user","content":"Inspect this project and implement the requested change."}],"tools":[{"type":"function","function":{"name":"read_file","parameters":{"type":"object"}}}],"tool_choice":"auto","stream":true}`)
 	var panelCalls, judgeCalls []string
@@ -1720,7 +1720,7 @@ func TestFusionToolEnabledRequestRunsPanelsAndJudge(t *testing.T) {
 }
 
 func TestFusionToolCallHistoryRunsThroughPanelsAndJudge(t *testing.T) {
-	strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}}
+	strategy := comboStrategy{Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Model: "judge-model"}}
 	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
 	body := []byte(`{"model":"combo-coding","messages":[{"role":"user","content":"continue"},{"role":"assistant","content":"I’ll inspect the file.","tool_calls":[{"id":"call-1","type":"function","function":{"name":"read_file","arguments":"{}"}}]},{"role":"tool","tool_call_id":"call-1","content":"source text"}],"tools":[{"type":"function","function":{"name":"read_file"}}]}`)
 	var panelCalls, judgeCalls []string
@@ -2231,7 +2231,7 @@ func TestFusionProposalOrderIsShuffled(t *testing.T) {
 	proposals := []fusionProposal{{text: "first"}, {text: "second"}, {text: "third"}, {text: "fourth"}}
 	firsts := map[string]bool{}
 	for range 200 {
-		encoded, err := fusionProposalsPayload("request", "alias", proposals)
+		encoded, err := fusionProposalsPayload("request", "alias", comboStrategy{}, proposals)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -2251,7 +2251,7 @@ func TestFusionProposalOrderIsShuffled(t *testing.T) {
 
 func TestFusionProposalsAreCappedAndMarkedTruncated(t *testing.T) {
 	huge := strings.Repeat("é", fusionProposalBudgetBytes)
-	encoded, err := fusionProposalsPayload("request", "alias", []fusionProposal{
+	encoded, err := fusionProposalsPayload("request", "alias", comboStrategy{}, []fusionProposal{
 		{text: huge},
 		{calls: []any{map[string]any{"name": "write_file", "input": huge}}},
 	})
@@ -2324,7 +2324,7 @@ func TestFusionFastPathEscalates(t *testing.T) {
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			strategy := comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}, ReadOnlyTools: []string{"read_file"}}
+			strategy := comboStrategy{Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Model: "judge-model"}, ReadOnlyTools: []string{"read_file"}}
 			var mu sync.Mutex
 			counts := map[string]int{}
 			var judgeRequest []byte
@@ -2817,7 +2817,7 @@ func TestFusionStreamEscalatesWithLeadAsProposal(t *testing.T) {
 	h := newFusionStreamHost()
 	h.streams["gpt-coder"] = fusionLeadChunk("edit_file")
 	h.streams["judge-model"] = []string{"data: judged\n\n"}
-	if err := runFusionStream(t, h, comboStrategy{Type: "fusion", Judge: comboCandidate{Model: "judge-model"}, ReadOnlyTools: []string{"read_file"}}, fusionStreamToolBody); err != nil {
+	if err := runFusionStream(t, h, comboStrategy{Type: "fusion", FusionRounds: 1, Judge: comboCandidate{Model: "judge-model"}, ReadOnlyTools: []string{"read_file"}}, fusionStreamToolBody); err != nil {
 		t.Fatal(err)
 	}
 	if !reflect.DeepEqual(h.emitted, []string{"data: judged\n\n"}) {
@@ -4808,5 +4808,130 @@ func TestJudgePromptWeighsConsensusAndBlindSpots(t *testing.T) {
 		if !strings.Contains(fusionJudgeInstructions, want) {
 			t.Errorf("prompt lost %q", want)
 		}
+	}
+}
+
+func TestFusionRoundsRefineProposalsBeforeJudge(t *testing.T) {
+	strategy := comboStrategy{Type: "fusion", FusionRounds: 2, Judge: comboCandidate{Model: "judge-model"}}
+	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"which approach is correct?"}],"stream":false}`)
+	var mu sync.Mutex
+	prompts := map[string][]string{}
+	var judgeRequest []byte
+	response, err := executeWithStrategy(context.Background(), "fusion-rounds", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if candidate.Model == "judge-model" {
+			judgeRequest = append([]byte(nil), request...)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"final"}}]}`)}, nil
+		}
+		round := "draft"
+		if bytes.Contains(request, []byte("this is round 2")) {
+			round = "refined"
+		}
+		prompts[candidate.Model] = append(prompts[candidate.Model], round)
+		content, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": round + " from " + candidate.Model}}}})
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: content}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.StatusCode != http.StatusOK {
+		t.Fatalf("response = %#v", response)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	for _, model := range []string{"panel-a", "panel-b"} {
+		if !reflect.DeepEqual(prompts[model], []string{"draft", "refined"}) {
+			t.Fatalf("%s rounds = %v", model, prompts[model])
+		}
+	}
+	if !strings.Contains(string(judgeRequest), "refined from panel-a") || !strings.Contains(string(judgeRequest), "refined from panel-b") {
+		t.Fatalf("judge did not receive refined proposals: %s", judgeRequest)
+	}
+	if strings.Contains(string(judgeRequest), "draft from") {
+		t.Fatalf("judge received superseded proposals: %s", judgeRequest)
+	}
+	if !strings.Contains(string(judgeRequest), "untrusted data") {
+		t.Fatalf("judge lost the untrusted-data framing: %s", judgeRequest)
+	}
+}
+
+func TestFusionRoundFailureKeepsEarlierProposals(t *testing.T) {
+	strategy := comboStrategy{Type: "fusion", FusionRounds: 2, Judge: comboCandidate{Model: "judge-model"}}
+	candidates := []comboCandidate{{Model: "panel-a"}, {Model: "panel-b"}}
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":"hi"}]}`)
+	var mu sync.Mutex
+	var judgeRequest []byte
+	_, err := executeWithStrategy(context.Background(), "fusion-round-failure", strategy, candidates, testConfig(), body, "cb", func(_ context.Context, candidate comboCandidate, request []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		mu.Lock()
+		defer mu.Unlock()
+		if candidate.Model == "judge-model" {
+			judgeRequest = append([]byte(nil), request...)
+			return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{"choices":[{"message":{"content":"final"}}]}`)}, nil
+		}
+		if bytes.Contains(request, []byte("this is round 2")) {
+			return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusServiceUnavailable}
+		}
+		content, _ := json.Marshal(map[string]any{"choices": []any{map[string]any{"message": map[string]string{"content": "first answer from " + candidate.Model}}}})
+		return pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: content}, nil
+	}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	mu.Lock()
+	defer mu.Unlock()
+	if !strings.Contains(string(judgeRequest), "first answer from panel-a") || !strings.Contains(string(judgeRequest), "first answer from panel-b") {
+		t.Fatalf("judge lost round-one proposals: %s", judgeRequest)
+	}
+}
+
+func TestFusionPanelReasoningReachesJudge(t *testing.T) {
+	proposals := []fusionProposal{{text: "answer", reasoning: "because the source shows it"}}
+	encoded, err := fusionProposalsPayload("request", "alias", comboStrategy{}, proposals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(encoded, `"reasoning":"because the source shows it"`) {
+		t.Fatalf("reasoning missing: %s", encoded)
+	}
+	disabled := false
+	encoded, err = fusionProposalsPayload("request", "alias", comboStrategy{FusionReasoning: &disabled}, proposals)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(encoded, "reasoning") {
+		t.Fatalf("disabled reasoning leaked: %s", encoded)
+	}
+}
+
+func TestFusionPanelReasoningExtraction(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "chat", body: `{"choices":[{"message":{"content":"answer","reasoning_content":"think"}}]}`},
+		{name: "responses", body: `{"output":[{"type":"reasoning","summary":[{"text":"think"}]},{"type":"message","content":[{"type":"output_text","text":"answer"}]}]}`},
+		{name: "gemini", body: `{"candidates":[{"content":{"parts":[{"text":"think","thought":true},{"text":"answer"}]}}]}`},
+		{name: "anthropic", body: `{"content":[{"type":"thinking","thinking":"think"},{"type":"text","text":"answer"}]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			text, calls, reasoning := fusionPanelPartsWithReasoning([]byte(tt.body))
+			if text != "answer" || calls != nil || reasoning != "think" {
+				t.Fatalf("text=%q calls=%v reasoning=%q", text, calls, reasoning)
+			}
+		})
+	}
+}
+
+func TestFusionRoundsValidation(t *testing.T) {
+	for _, rounds := range []int{0, 1, 2, 3} {
+		if err := validateFusionOptions("alias", comboStrategy{Type: "fusion", FusionRounds: rounds}); err != nil {
+			t.Errorf("rounds %d rejected: %v", rounds, err)
+		}
+	}
+	if err := validateFusionOptions("alias", comboStrategy{Type: "fusion", FusionRounds: 4}); err == nil {
+		t.Fatal("rounds above the maximum were accepted")
 	}
 }
