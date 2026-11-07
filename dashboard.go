@@ -20,6 +20,8 @@ const comboDashboardHTML = `<!doctype html>
 }
 *{box-sizing:border-box}
 html,body{margin:0;min-height:100%}
+*{scrollbar-width:thin;scrollbar-color:#3a473e transparent}
+::selection{background:#b8f36b33}
 body{
   color:var(--text);
   background:
@@ -37,11 +39,11 @@ h1,h2,h3,p{margin:0}
 .shell{max-width:1200px;margin:0 auto;padding:20px 24px 28px}
 .top{display:flex;align-items:center;justify-content:space-between;gap:12px 20px;flex-wrap:wrap;padding-bottom:16px;border-bottom:1px solid var(--line)}
 .brand{display:flex;align-items:center;gap:12px;min-width:0}
-.mark{width:34px;height:34px;flex:none;border-radius:9px;background:var(--lime);color:#17200f;display:grid;place-items:center;font-weight:900;font-size:17px}
+.mark{width:36px;height:36px;flex:none;border-radius:10px;background:linear-gradient(145deg,#d2ff92,var(--lime));color:#17200f;display:grid;place-items:center;font-weight:900;font-size:17px;box-shadow:0 4px 16px #b8f36b33}
 .brand h1{font-size:15px;letter-spacing:-.01em;line-height:1.2}
 .brand small{display:block;color:var(--faint);font-size:12px}
 .top-right{display:flex;align-items:center;gap:10px 18px;flex-wrap:wrap}
-.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px}
+.status{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;padding:5px 11px;border:1px solid var(--line);border-radius:99px;background:#ffffff06}
 .dot{width:8px;height:8px;border-radius:50%;background:var(--faint);flex:none}
 .status[data-state=ok] .dot{background:var(--lime);box-shadow:0 0 10px #b8f36b80}
 .status[data-state=busy] .dot{background:var(--amber);animation:pulse 1.1s ease-in-out infinite}
@@ -60,9 +62,11 @@ h1,h2,h3,p{margin:0}
 
 .layout{display:grid;grid-template-columns:264px minmax(0,1fr);gap:20px;padding-top:18px;align-items:start}
 .rail{position:sticky;top:14px;display:grid;gap:12px;min-width:0}
-.card{border:1px solid var(--line);background:var(--panel);border-radius:12px}
+.card{border:1px solid var(--line);background:linear-gradient(180deg,#18211b,var(--panel));border-radius:14px;box-shadow:inset 0 1px 0 #ffffff08,0 8px 24px #00000024}
 .rail-head{display:flex;align-items:center;justify-content:space-between;padding:12px 14px 8px}
 .rail-head h2,.section-title{font-size:12px;letter-spacing:.09em;text-transform:uppercase;color:var(--muted);font-weight:700}
+.section-title{display:flex;align-items:center;gap:8px}
+.section-title:before{content:"";width:6px;height:6px;border-radius:50%;background:var(--lime);box-shadow:0 0 9px #b8f36b66;flex:none}
 .count{font:12px var(--mono);color:var(--lime)}
 .alias-list{display:grid;gap:2px;padding:0 6px 8px;max-height:min(52vh,560px);overflow:auto}
 .alias{display:flex;align-items:center;gap:8px;width:100%;min-height:36px;border:1px solid transparent;background:transparent;border-radius:8px;text-align:left;padding:6px 8px}
@@ -93,8 +97,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:
 .btn{min-height:36px;padding:6px 12px;border:1px solid var(--line-strong);border-radius:8px;background:#232c26;font-size:13px;font-weight:600;white-space:nowrap;transition:background .12s,border-color .12s}
 .btn:hover:not(:disabled){background:#2c3730;border-color:#5f7265}
 .btn:disabled{opacity:.5;cursor:not-allowed}
-.btn.primary{background:var(--lime);border-color:var(--lime);color:#18210f;font-weight:750}
-.btn.primary:hover:not(:disabled){background:#c9ff83;border-color:#c9ff83}
+.btn.primary{background:linear-gradient(180deg,#c9ff86,var(--lime));border-color:#a9e760;color:#18210f;font-weight:750;box-shadow:0 2px 12px #b8f36b26}
+.btn.primary:hover:not(:disabled){background:linear-gradient(180deg,#d7ffa1,#c2fa78);border-color:#c9ff83}
 .btn.ghost{background:transparent}
 .btn.danger{color:var(--red)}
 .btn.danger:hover:not(:disabled){border-color:#8b4e47;background:var(--red-wash)}
@@ -103,11 +107,12 @@ input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:
 
 .work{display:grid;gap:14px;min-width:0;animation:rise .22s ease-out}
 @keyframes rise{from{opacity:0;transform:translateY(4px)}}
-.head{padding:16px 18px}
+.head{padding:16px 18px;position:relative;overflow:hidden}
+.head:before{content:"";position:absolute;inset:0 0 auto;height:2px;background:linear-gradient(90deg,var(--lime),transparent 70%)}
 .head-line{display:flex;align-items:flex-start;justify-content:space-between;gap:10px 16px;flex-wrap:wrap}
 .head h2{font:600 21px/1.25 var(--mono);letter-spacing:-.02em;overflow-wrap:anywhere}
 .head-actions{display:flex;gap:6px;flex:none}
-.route{margin-top:12px;padding:9px 12px;border-radius:8px;background:var(--inset);border:1px solid var(--line);font:13px/1.7 var(--mono);overflow-wrap:anywhere}
+.route{margin-top:12px;padding:10px 13px;border-radius:10px;background:linear-gradient(180deg,#0d120f,#0f1611);border:1px solid var(--line);box-shadow:inset 0 1px 0 #ffffff05;font:13px/1.7 var(--mono);overflow-wrap:anywhere}
 .route b{font-weight:500;color:var(--lime)}
 .route i{font-style:normal;color:var(--faint);padding:0 6px}
 .route .none{color:var(--red)}
@@ -133,6 +138,15 @@ input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:
 .strategy:has(input:checked){border-color:var(--lime-dim);background:var(--lime-wash)}
 .strategy:has(input:checked) strong{color:var(--lime)}
 .strategy:has(input:focus-visible){outline:2px solid var(--lime);outline-offset:2px}
+.mode-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px;margin:6px 0 10px}
+.mode{position:relative;display:block;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);cursor:pointer;transition:border-color .12s,background .12s}
+.mode:hover{border-color:var(--line-strong)}
+.mode input{position:absolute;opacity:0;inset:0;width:100%;height:100%;margin:0;cursor:pointer}
+.mode strong{display:block;font-size:13px;font-weight:650}
+.mode span{display:block;color:var(--muted);font-size:12px;line-height:1.4;margin-top:2px}
+.mode:has(input:checked){border-color:var(--lime-dim);background:var(--lime-wash)}
+.mode:has(input:checked) strong{color:var(--lime)}
+.mode:has(input:focus-visible){outline:2px solid var(--lime);outline-offset:2px}
 
 .grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:12px;margin-top:13px}
 .grid .wide{grid-column:1/-1}
@@ -143,7 +157,8 @@ input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:
 .toggle input{accent-color:var(--lime);width:16px;height:16px;flex:none;margin:0}
 
 .rows{display:grid;gap:7px}
-.row{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2)}
+.row{position:relative;display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:10px;align-items:start;padding:9px 10px;border:1px solid var(--line);border-radius:10px;background:var(--panel-2);transition:border-color .12s,background .12s}
+.row:hover{border-color:#3b4a40;background:#1e2721}
 .order{position:relative;width:30px;height:36px;display:grid;place-items:center;border-radius:7px;color:var(--lime);background:var(--lime-wash);font:12px var(--mono)}
 .rows[data-flow=sequence] .row:not(:last-child) .order:after{content:"↓";position:absolute;left:0;right:0;top:38px;text-align:center;color:var(--faint);font-size:12px;line-height:1}
 .rows[data-flow=parallel] .order{color:var(--text);background:#ffffff10}
@@ -165,7 +180,7 @@ input:focus,select:focus,textarea:focus{border-color:var(--lime-dim);box-shadow:
 .empty strong{display:block;font-size:16px;margin-bottom:6px}
 .empty p{color:var(--muted);max-width:420px;margin:0 auto 14px}
 
-.savebar{position:sticky;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;background:#171e19f5;backdrop-filter:blur(10px);border:1px solid var(--line-strong);border-radius:12px;box-shadow:0 10px 34px #0007;margin-top:14px}
+.savebar{position:sticky;bottom:12px;z-index:3;display:flex;align-items:center;justify-content:space-between;gap:10px 14px;flex-wrap:wrap;padding:10px 14px;background:linear-gradient(180deg,#1a231df5,#141a16f5);backdrop-filter:blur(12px);border:1px solid var(--line-strong);border-radius:13px;box-shadow:0 14px 40px #0008;margin-top:14px}
 .savebar[data-kind=error]{border-color:#8b4e47}
 .savebar[data-kind=success]{border-color:var(--lime-dim)}
 .message{font-size:13px;min-width:0;flex:1 1 240px}
@@ -200,7 +215,7 @@ dialog p{color:var(--muted);font-size:13px;margin-bottom:12px;overflow-wrap:anyw
   .icon{width:40px;height:38px}
   .rows[data-flow=sequence] .row:not(:last-child) .order:after{display:none}
 }
-@media(max-width:460px){.strategies{grid-template-columns:1fr}.head-actions{width:100%}.head-actions .btn{flex:1}}
+@media(max-width:460px){.strategies{grid-template-columns:1fr}.mode-grid{grid-template-columns:1fr}.head-actions{width:100%}.head-actions .btn{flex:1}}
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation:none!important;transition:none!important}}
 </style>
 </head>
@@ -352,6 +367,7 @@ function normalizeStrategies(value,modelChains){
       vision_enabled:raw.vision_enabled===true,
       vision_candidates:Array.isArray(raw.vision_candidates)?raw.vision_candidates.map(normalizeCandidate):[],
       vision_judge:normalizeCandidate(raw.vision_judge),
+      vision_scope:raw.vision_scope==='latest'?'latest':'history',
       panel_timeout_seconds:wholeNumber(raw.panel_timeout_seconds),
       quorum:wholeNumber(raw.quorum),
       quorum_grace_seconds:wholeNumber(raw.quorum_grace_seconds),
@@ -384,8 +400,9 @@ function computeIssues(){
   const names=Object.keys(chains);
   if(ui.enabled.checked&&names.length===0)add('error','','', 'Add at least one combo alias before turning combo routing on.');
   const codes=retryList().map(Number);
-  if(!codes.length||codes.some(code=>!Number.isInteger(code)||(code!==403&&code!==429&&(code<500||code>599))))add('error','','retry','Retry statuses must be 403, 429, or 5xx codes, separated by commas.');
+  if(!codes.length||codes.some(code=>!Number.isInteger(code)||code<400||code>599))add('error','','retry','Retry statuses must be 4xx or 5xx codes, separated by commas.');
   else if(!codes.includes(500))add('warn','','retry','500 is not in your retry list. CPA reports dead providers and empty streams as 500, so those stop the chain.',{label:'Add 500',run:()=>{retryText=[...retryList().map(Number),500].sort((a,b)=>a-b).join(', ');renderAll()}});
+  if(codes.some(code=>code>=400&&code<500&&code!==403&&code!==429))add('warn','','retry','4xx codes other than 403/429 usually mean the request itself is invalid, so the next model may reject it the same way.');
   const attempts=Number(attemptsText);
   if(!wholeInRange(attempts,1,20))add('error','','attempts','Attempts per model must be a whole number from 1 to 20.');
   if(!textIsTimeout(firstByteText))add('error','','first-byte','First-byte timeout must be blank, 0, or 5 to 1800 seconds.');
@@ -670,7 +687,10 @@ function visionSection(alias){
     h('div',{class:'section-head',style:'margin-bottom:4px'},h('h3',{class:'section-title',text:'Image-triggered vision routing'})),
     h('label',{class:'toggle'},h('input',{type:'checkbox',checked:strategy.vision_enabled,onchange:event=>{strategy.vision_enabled=event.target.checked;touched();renderMain()}}),h('span',{text:'Route image requests to vision models'})));
   if(!strategy.vision_enabled)return section;
-  section.append(h('p',{class:'help',style:'margin:2px 0 10px',text:'Requests containing an image use this pool instead of the models above. Text-only requests are unchanged.'}));
+  section.append(h('p',{class:'help',style:'margin:2px 0 4px',text:'Requests that carry an image use this pool instead of the models above. Text-only requests are unchanged.'}));
+  section.append(h('div',{class:'mode-grid'},
+    h('label',{class:'mode'},h('input',{type:'radio',name:'vision-scope',checked:strategy.vision_scope!=='latest',onchange:()=>{strategy.vision_scope='history';touched();renderMain()}}),h('strong',{text:'Whole conversation'}),h('span',{text:'Keep using this pool while any image remains in the history.'})),
+    h('label',{class:'mode'},h('input',{type:'radio',name:'vision-scope',checked:strategy.vision_scope==='latest',onchange:()=>{strategy.vision_scope='latest';touched();renderMain()}}),h('strong',{text:'Newest turn only'}),h('span',{text:'Only route when the newest turn adds an image; earlier images become text placeholders.'}))));
   section.append(list.length?h('div',{class:'rows','data-flow':strategy.type==='fusion'?'parallel':'sequence'},list.map((candidate,index)=>candidateRow(candidate,index,list,'vision'))):h('div',{class:'inner-empty',text:'Add a model that accepts images.'}));
   section.append(addRow(list,'vision','＋ Add vision model','add-vision'));
   if(strategy.type==='fusion')section.append(h('div',{class:'grid'},
@@ -692,7 +712,7 @@ function renderSettings(){
     h('section',{class:'card section'},
       h('h3',{class:'section-title',text:'Retry behavior'}),
       h('div',{class:'grid'},
-        field({label:'Retry on HTTP status codes',value:retryText,placeholder:'403, 429, 500, 502, 503, 504',mono:true,key:'retry',hint:'Only 403, 429, and 5xx are allowed. A context overflow always moves on.',onInput:value=>{retryText=value;touched()}}),
+        field({label:'Retry on HTTP status codes',value:retryText,placeholder:'403, 429, 500, 502, 503, 504',mono:true,key:'retry',hint:'Any 4xx or 5xx code is allowed. 4xx besides 403/429 usually will not succeed on retry. A context overflow always moves on.',onInput:value=>{retryText=value;touched()}}),
         field({label:'Attempts per model',value:attemptsText,type:'number',min:1,max:20,placeholder:'1–20',key:'attempts',hint:'Each model gets this many tries before the next one starts. A request a model cannot accept moves on or stops right away.',onInput:value=>{attemptsText=value;touched()}}))),
     h('section',{class:'card section'},
       h('h3',{class:'section-title',text:'Silent model limits'}),

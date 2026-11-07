@@ -478,10 +478,12 @@ func TestValidateConfigBoundaries(t *testing.T) {
 		}, wantErr: true},
 		{name: "attempts lower bound", mutate: func(c *comboConfig) { c.MaxAttempts = 0 }, wantErr: true},
 		{name: "attempts upper bound", mutate: func(c *comboConfig) { c.MaxAttempts = 21 }, wantErr: true},
-		{name: "retry 400 rejected", mutate: func(c *comboConfig) { c.RetryStatuses = []int{400} }, wantErr: true},
-		{name: "retry 401 rejected", mutate: func(c *comboConfig) { c.RetryStatuses = []int{401} }, wantErr: true},
+		{name: "retry 400 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{400} }},
+		{name: "retry 401 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{401} }},
 		{name: "retry 403 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{403} }},
-		{name: "retry 499 rejected", mutate: func(c *comboConfig) { c.RetryStatuses = []int{499} }, wantErr: true},
+		{name: "retry 413 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{413} }},
+		{name: "retry 499 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{499} }},
+		{name: "retry 399 rejected", mutate: func(c *comboConfig) { c.RetryStatuses = []int{399} }, wantErr: true},
 		{name: "retry 600 rejected", mutate: func(c *comboConfig) { c.RetryStatuses = []int{600} }, wantErr: true},
 		{name: "retry 429 accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{429} }},
 		{name: "retry 5xx bounds accepted", mutate: func(c *comboConfig) { c.RetryStatuses = []int{500, 599} }},
@@ -4260,6 +4262,48 @@ func TestEveryModelGetsMaxAttemptsTries(t *testing.T) {
 	}
 }
 
+func TestConfiguredClientErrorFallsBackToNextModel(t *testing.T) {
+	cfg := testConfig()
+	cfg.MaxAttempts = 1
+	cfg.RetryStatuses = []int{404}
+	models := []comboCandidate{{Model: "gone-model"}, {Model: "healthy-model"}}
+	var calls []string
+	got, err := executeFallback(context.Background(), models, cfg, []byte(`{"model":"x"}`), "cb", func(_ context.Context, candidate comboCandidate, _ []byte, _ string) (pluginapi.HostModelExecutionResponse, error) {
+		calls = append(calls, candidate.Model)
+		if candidate.Model == "gone-model" {
+			return pluginapi.HostModelExecutionResponse{}, StatusError{Code: http.StatusNotFound, Message: "model not found"}
+		}
+		return fusionTestText("from the second model"), nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(calls, []string{"gone-model", "healthy-model"}) {
+		t.Fatalf("calls = %v", calls)
+	}
+	if !strings.Contains(string(got.Body), "from the second model") {
+		t.Fatalf("body = %s", got.Body)
+	}
+
+	calls = nil
+	var emitted []string
+	err = executeStreamFallback(context.Background(), models, cfg, func(_ context.Context, candidate comboCandidate, emit func([]byte) error) error {
+		calls = append(calls, candidate.Model)
+		if candidate.Model == "gone-model" {
+			return StatusError{Code: http.StatusNotFound, Message: "model not found"}
+		}
+		return emit([]byte("streamed answer"))
+	}, func(chunk []byte) error {
+		if len(chunk) > 0 {
+			emitted = append(emitted, string(chunk))
+		}
+		return nil
+	})
+	if err != nil || !reflect.DeepEqual(calls, []string{"gone-model", "healthy-model"}) || len(emitted) != 1 {
+		t.Fatalf("stream err=%v calls=%v emitted=%v", err, calls, emitted)
+	}
+}
+
 func TestSameModelRetrySucceedsWithoutReachingTheNextModel(t *testing.T) {
 	cfg := testConfig()
 	cfg.MaxAttempts = 3
@@ -4933,5 +4977,86 @@ func TestFusionRoundsValidation(t *testing.T) {
 	}
 	if err := validateFusionOptions("alias", comboStrategy{Type: "fusion", FusionRounds: 4}); err == nil {
 		t.Fatal("rounds above the maximum were accepted")
+	}
+}
+
+func TestVisionScopeLatestRoutesOnlyNewImages(t *testing.T) {
+	candidates := []comboCandidate{{Model: "text-a"}, {Model: "text-b"}}
+	strategy := comboStrategy{Type: "fallback", VisionEnabled: true, VisionScope: "latest", VisionCandidates: []comboCandidate{{Model: "vision-model"}}}
+	historyImage := []byte(`{"model":"combo","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]},{"role":"assistant","content":"I saw the image"},{"role":"user","content":"continue"}]}`)
+	pool, _, alias, body, routed, err := requestCandidatePool("combo", strategy, candidates, historyImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if routed || alias != "combo" || len(pool) != 2 || pool[0].Model != "text-a" {
+		t.Fatalf("routed=%t alias=%q pool=%v", routed, alias, pool)
+	}
+	if bytes.Contains(body, []byte("image_url")) || !bytes.Contains(body, []byte(visionHistoryImagePlaceholder)) {
+		t.Fatalf("history image was not replaced: %s", body)
+	}
+
+	newImage := []byte(`{"model":"combo","messages":[{"role":"user","content":[{"type":"text","text":"look"},{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]},{"role":"assistant","content":"I saw the image"},{"role":"tool","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,BBBB"}}]}]}`)
+	pool, _, alias, body, routed, err = requestCandidatePool("combo", strategy, candidates, newImage)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !routed || alias != "combo#vision" || len(pool) != 1 || pool[0].Model != "vision-model" {
+		t.Fatalf("routed=%t alias=%q pool=%v", routed, alias, pool)
+	}
+	if !bytes.Contains(body, []byte("image_url")) {
+		t.Fatalf("new-image request lost its images: %s", body)
+	}
+}
+
+func TestVisionScopeHistoryKeepsWholeRequestOnVisionPool(t *testing.T) {
+	candidates := []comboCandidate{{Model: "text-a"}}
+	strategy := comboStrategy{Type: "fallback", VisionEnabled: true, VisionCandidates: []comboCandidate{{Model: "vision-model"}}}
+	body := []byte(`{"model":"combo","messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]},{"role":"assistant","content":"seen"},{"role":"user","content":"next"}]}`)
+	pool, _, _, got, routed, err := requestCandidatePool("combo", strategy, candidates, body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !routed || len(pool) != 1 || pool[0].Model != "vision-model" || !bytes.Equal(got, body) {
+		t.Fatalf("routed=%t pool=%v body=%s", routed, pool, got)
+	}
+}
+
+func TestStripHistoryImagesAcrossProtocols(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{name: "chat", body: `{"messages":[{"role":"user","content":[{"type":"image_url","image_url":{"url":"data:image/png;base64,AAAA"}}]},{"role":"assistant","content":"seen"},{"role":"user","content":"next"}]}`},
+		{name: "responses", body: `{"input":[{"role":"user","content":[{"type":"input_image","image_url":"data:image/png;base64,AAAA"}]},{"role":"assistant","content":[{"type":"output_text","text":"seen"}]},{"role":"user","content":[{"type":"input_text","text":"next"}]}]}`},
+		{name: "anthropic", body: `{"messages":[{"role":"user","content":[{"type":"image","source":{"type":"base64","media_type":"image/png","data":"AAAA"}}]},{"role":"assistant","content":"seen"},{"role":"user","content":"next"}]}`},
+		{name: "gemini", body: `{"contents":[{"role":"user","parts":[{"inlineData":{"mimeType":"image/png","data":"AAAA"}}]},{"role":"model","parts":[{"text":"seen"}]},{"role":"user","parts":[{"text":"next"}]}]}`},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			stripped, images, size := stripHistoryImages([]byte(tt.body))
+			if images != 1 || size == 0 {
+				t.Fatalf("images=%d size=%d", images, size)
+			}
+			if !bytes.Contains(stripped, []byte(visionHistoryImagePlaceholder)) {
+				t.Fatalf("placeholder missing: %s", stripped)
+			}
+			for _, marker := range []string{"image_url", "input_image", "inlineData", `"type":"image"`} {
+				if bytes.Contains(stripped, []byte(marker)) {
+					t.Fatalf("image marker %q survived: %s", marker, stripped)
+				}
+			}
+		})
+	}
+}
+
+func TestVisionScopeValidation(t *testing.T) {
+	cfg := testConfig()
+	cfg.Strategies = map[string]comboStrategy{"combo-coding": {Type: "fallback", VisionScope: "sometimes"}}
+	if err := validateConfig(cfg); err == nil {
+		t.Fatal("invalid vision_scope was accepted")
+	}
+	cfg.Strategies["combo-coding"] = comboStrategy{Type: "fallback", VisionScope: "latest"}
+	if err := validateConfig(cfg); err != nil {
+		t.Fatalf("latest vision_scope rejected: %v", err)
 	}
 }

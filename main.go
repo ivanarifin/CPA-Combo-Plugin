@@ -182,9 +182,13 @@ type comboStrategy struct {
 	VisionEnabled       bool             `yaml:"vision_enabled"`
 	VisionCandidates    []comboCandidate `yaml:"vision_candidates"`
 	VisionJudge         comboCandidate   `yaml:"vision_judge"`
-	PanelTimeoutSeconds int              `yaml:"panel_timeout_seconds"`
-	Quorum              int              `yaml:"quorum"`
-	QuorumGraceSeconds  int              `yaml:"quorum_grace_seconds"`
+	// VisionScope is "history" (default, any image still in the request routes to the
+	// vision pool) or "latest" (only an image added in the newest turn does; older images
+	// are replaced with a text placeholder before the normal pool sees the request).
+	VisionScope         string `yaml:"vision_scope"`
+	PanelTimeoutSeconds int    `yaml:"panel_timeout_seconds"`
+	Quorum              int    `yaml:"quorum"`
+	QuorumGraceSeconds  int    `yaml:"quorum_grace_seconds"`
 	// FusionRounds is how many proposal rounds panels run (default 2). Later rounds
 	// show each panel the anonymized proposals so it can correct or improve its answer.
 	FusionRounds int `yaml:"fusion_rounds"`
@@ -455,6 +459,9 @@ func validateConfig(cfg comboConfig) error {
 				return err
 			}
 		}
+		if normalizedVisionScope(strategy.VisionScope) == "" {
+			return fmt.Errorf("strategy %q vision_scope must be history or latest", alias)
+		}
 		if strategy.VisionEnabled && len(strategy.VisionCandidates) == 0 {
 			return fmt.Errorf("strategy %q enables vision routing but has no vision_candidates", alias)
 		}
@@ -490,8 +497,8 @@ func validateConfig(cfg comboConfig) error {
 		}
 	}
 	for _, code := range cfg.RetryStatuses {
-		if code != http.StatusForbidden && code != http.StatusTooManyRequests && (code < 500 || code > 599) {
-			return fmt.Errorf("retry_statuses only permits 403, 429, and 5xx codes")
+		if code < 400 || code > 599 {
+			return fmt.Errorf("retry_statuses must be HTTP 4xx or 5xx codes")
 		}
 	}
 	return nil
@@ -547,7 +554,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.7.0", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.8.0", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -913,7 +920,7 @@ func prioritizeCandidate(candidates []comboCandidate, selected comboCandidate) [
 }
 
 func executeWithStrategy(ctx context.Context, alias string, strategy comboStrategy, candidates []comboCandidate, cfg comboConfig, body []byte, callbackID string, call hostModelCall, selectorCall hostModelCall) (pluginapi.HostModelExecutionResponse, error) {
-	candidates, strategy, rotationAlias, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
+	candidates, strategy, rotationAlias, body, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
 	if err != nil {
 		return pluginapi.HostModelExecutionResponse{}, err
 	}
@@ -954,18 +961,209 @@ func executeWithStrategy(ctx context.Context, alias string, strategy comboStrate
 	}
 }
 
-func requestCandidatePool(alias string, strategy comboStrategy, candidates []comboCandidate, body []byte) ([]comboCandidate, comboStrategy, string, bool, error) {
-	if !strategy.VisionEnabled || !requestHasImagePayload(body) {
-		return candidates, strategy, alias, false, nil
+func requestCandidatePool(alias string, strategy comboStrategy, candidates []comboCandidate, body []byte) ([]comboCandidate, comboStrategy, string, []byte, bool, error) {
+	if !strategy.VisionEnabled {
+		return candidates, strategy, alias, body, false, nil
+	}
+	hasImage := requestHasImagePayload(body)
+	if normalizedVisionScope(strategy.VisionScope) == visionScopeLatest {
+		if !latestTurnHasImagePayload(body) {
+			if !hasImage {
+				return candidates, strategy, alias, body, false, nil
+			}
+			stripped, images, size := stripHistoryImages(body)
+			if images > 0 {
+				logComboEvent("vision_history_images_stripped", "", alias, fmt.Sprintf(" images=%d bytes=%d scope=latest", images, size))
+				return candidates, strategy, alias, stripped, false, nil
+			}
+			// Images could not be proven gone, so keep the vision pool rather than send
+			// an image payload to models that may reject it.
+		}
+	} else if !hasImage {
+		return candidates, strategy, alias, body, false, nil
 	}
 	if len(strategy.VisionCandidates) == 0 {
-		return nil, strategy, alias, false, fmt.Errorf("combo %q received an image request but vision routing has no vision_candidates", alias)
+		return nil, strategy, alias, body, false, fmt.Errorf("combo %q received an image request but vision routing has no vision_candidates", alias)
 	}
 	visionCandidates := append([]comboCandidate(nil), strategy.VisionCandidates...)
 	if strategy.Type == "fusion" {
 		strategy.Judge = strategy.VisionJudge
 	}
-	return visionCandidates, strategy, alias + "#vision", true, nil
+	return visionCandidates, strategy, alias + "#vision", body, true, nil
+}
+
+const (
+	visionScopeHistory = "history"
+	visionScopeLatest  = "latest"
+)
+
+func normalizedVisionScope(value string) string {
+	switch strings.ToLower(strings.TrimSpace(value)) {
+	case "", visionScopeHistory:
+		return visionScopeHistory
+	case visionScopeLatest:
+		return visionScopeLatest
+	}
+	return ""
+}
+
+// latestTurnHasImagePayload reports whether the newest turn, after the last assistant
+// boundary, adds an image. Images that only exist earlier in the history do not count.
+func latestTurnHasImagePayload(body []byte) bool {
+	var payload map[string]any
+	if json.Unmarshal(body, &payload) != nil {
+		return false
+	}
+	for _, key := range payloadHistoryKeys {
+		list, ok := payload[key].([]any)
+		if !ok {
+			continue
+		}
+		for _, item := range list[latestTurnStart(list):] {
+			if containsImagePayload(item) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+var payloadHistoryKeys = []string{"messages", "input", "contents"}
+
+const visionHistoryImagePlaceholder = "[image omitted from earlier context]"
+
+// latestTurnStart finds the first message after the last assistant turn, so callers can
+// treat everything before it as history and everything after it as the current request.
+func latestTurnStart(list []any) int {
+	for index := len(list) - 1; index >= 0; index-- {
+		item, ok := list[index].(map[string]any)
+		if !ok {
+			continue
+		}
+		if role, _ := item["role"].(string); role == "assistant" || role == "model" {
+			return index + 1
+		}
+		switch kind, _ := item["type"].(string); kind {
+		case "function_call", "computer_call", "web_search_call", "reasoning":
+			return index + 1
+		}
+	}
+	return 0
+}
+
+// stripHistoryImages replaces images from earlier turns with text so a model that cannot
+// see them still receives a valid request. The newest turn is left alone; the caller only
+// strips when that turn added no image.
+func stripHistoryImages(body []byte) ([]byte, int, int) {
+	var payload map[string]any
+	if json.Unmarshal(body, &payload) != nil || payload == nil {
+		return body, 0, 0
+	}
+	images, size := 0, 0
+	for _, key := range payloadHistoryKeys {
+		list, ok := payload[key].([]any)
+		if !ok {
+			continue
+		}
+		start := latestTurnStart(list)
+		for index := 0; index < start; index++ {
+			replaced, removed, bytes := replaceImageParts(list[index])
+			if removed > 0 {
+				list[index] = replaced
+				images += removed
+				size += bytes
+			}
+		}
+	}
+	if images == 0 {
+		return body, 0, 0
+	}
+	encoded, err := json.Marshal(payload)
+	if err != nil {
+		return body, 0, 0
+	}
+	return encoded, images, size
+}
+
+func replaceImageParts(value any) (any, int, int) {
+	switch item := value.(type) {
+	case []any:
+		images, size := 0, 0
+		for index, child := range item {
+			replaced, removed, bytes := replaceImageParts(child)
+			if removed > 0 {
+				item[index] = replaced
+				images += removed
+				size += bytes
+			}
+		}
+		return item, images, size
+	case map[string]any:
+		if part, bytes, ok := imagePlaceholderPart(item); ok {
+			return part, 1, bytes
+		}
+		images, size := 0, 0
+		for key, child := range item {
+			replaced, removed, bytes := replaceImageParts(child)
+			if removed > 0 {
+				item[key] = replaced
+				images += removed
+				size += bytes
+			}
+		}
+		return item, images, size
+	}
+	return value, 0, 0
+}
+
+func imagePlaceholderPart(item map[string]any) (map[string]any, int, bool) {
+	kind, _ := item["type"].(string)
+	switch strings.ToLower(kind) {
+	case "image_url", "input_image":
+		if !partHasImageSource(item) {
+			return nil, 0, false
+		}
+		textType := "text"
+		if strings.EqualFold(kind, "input_image") {
+			textType = "input_text"
+		}
+		return map[string]any{"type": textType, "text": visionHistoryImagePlaceholder}, jsonSize(item), true
+	case "image":
+		if !partHasImageSource(item) {
+			return nil, 0, false
+		}
+		return map[string]any{"type": "text", "text": visionHistoryImagePlaceholder}, jsonSize(item), true
+	}
+	for key, child := range item {
+		switch strings.ToLower(key) {
+		case "image_url", "input_image":
+			if hasImageSource(child) {
+				return map[string]any{"type": "text", "text": visionHistoryImagePlaceholder}, jsonSize(item), true
+			}
+		case "inline_data", "inlinedata", "file_data", "filedata":
+			if hasImageData(child) {
+				return map[string]any{"text": visionHistoryImagePlaceholder}, jsonSize(item), true
+			}
+		}
+	}
+	return nil, 0, false
+}
+
+func partHasImageSource(item map[string]any) bool {
+	for _, key := range []string{"source", "url", "image_url", "data", "file_id"} {
+		if hasImageSource(item[key]) {
+			return true
+		}
+	}
+	return false
+}
+
+func jsonSize(value any) int {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return 0
+	}
+	return len(encoded)
 }
 
 func requestHasImagePayload(body []byte) bool {
@@ -1602,7 +1800,7 @@ func executeStreamWithHost(raw []byte, hostCall rpcHostCall) ([]byte, error) {
 	}
 	alias := requestedAlias(req.ExecutorRequest, body)
 	strategy := strategyFor(cfg, alias)
-	candidates, strategy, rotationAlias, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
+	candidates, strategy, rotationAlias, body, visionRouted, err := requestCandidatePool(alias, strategy, candidates, body)
 	if err != nil {
 		status, _ := AsStatusError(err)
 		return errorEnvelope("executor_error", err.Error(), status.Code), nil
