@@ -554,7 +554,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.8.0", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.8.1", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -967,18 +967,20 @@ func requestCandidatePool(alias string, strategy comboStrategy, candidates []com
 	}
 	hasImage := requestHasImagePayload(body)
 	if normalizedVisionScope(strategy.VisionScope) == visionScopeLatest {
-		if !latestTurnHasImagePayload(body) {
-			if !hasImage {
-				return candidates, strategy, alias, body, false, nil
-			}
-			stripped, images, size := stripHistoryImages(body)
-			if images > 0 {
-				logComboEvent("vision_history_images_stripped", "", alias, fmt.Sprintf(" images=%d bytes=%d scope=latest", images, size))
-				return candidates, strategy, alias, stripped, false, nil
-			}
-			// Images could not be proven gone, so keep the vision pool rather than send
-			// an image payload to models that may reject it.
+		if !hasImage {
+			return candidates, strategy, alias, body, false, nil
 		}
+		latest := latestTurnHasImagePayload(body)
+		stripped, images, size := stripHistoryImages(body)
+		if images > 0 {
+			logComboEvent("vision_history_images_stripped", "", alias, fmt.Sprintf(" images=%d bytes=%d scope=latest", images, size))
+			body = stripped
+		}
+		if !latest && images > 0 {
+			return candidates, strategy, alias, body, false, nil
+		}
+		// With no new image and images that could not be proven gone, keep the vision
+		// pool rather than send an image payload to models that may reject it.
 	} else if !hasImage {
 		return candidates, strategy, alias, body, false, nil
 	}

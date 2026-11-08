@@ -5003,8 +5003,8 @@ func TestVisionScopeLatestRoutesOnlyNewImages(t *testing.T) {
 	if !routed || alias != "combo#vision" || len(pool) != 1 || pool[0].Model != "vision-model" {
 		t.Fatalf("routed=%t alias=%q pool=%v", routed, alias, pool)
 	}
-	if !bytes.Contains(body, []byte("image_url")) {
-		t.Fatalf("new-image request lost its images: %s", body)
+	if !bytes.Contains(body, []byte("BBBB")) || bytes.Contains(body, []byte("AAAA")) || !bytes.Contains(body, []byte(visionHistoryImagePlaceholder)) {
+		t.Fatalf("vision request kept history images: %s", body)
 	}
 }
 

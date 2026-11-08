@@ -690,7 +690,7 @@ function visionSection(alias){
   section.append(h('p',{class:'help',style:'margin:2px 0 4px',text:'Requests that carry an image use this pool instead of the models above. Text-only requests are unchanged.'}));
   section.append(h('div',{class:'mode-grid'},
     h('label',{class:'mode'},h('input',{type:'radio',name:'vision-scope',checked:strategy.vision_scope!=='latest',onchange:()=>{strategy.vision_scope='history';touched();renderMain()}}),h('strong',{text:'Whole conversation'}),h('span',{text:'Keep using this pool while any image remains in the history.'})),
-    h('label',{class:'mode'},h('input',{type:'radio',name:'vision-scope',checked:strategy.vision_scope==='latest',onchange:()=>{strategy.vision_scope='latest';touched();renderMain()}}),h('strong',{text:'Newest turn only'}),h('span',{text:'Only route when the newest turn adds an image; earlier images become text placeholders.'}))));
+    h('label',{class:'mode'},h('input',{type:'radio',name:'vision-scope',checked:strategy.vision_scope==='latest',onchange:()=>{strategy.vision_scope='latest';touched();renderMain()}}),h('strong',{text:'Newest turn only'}),h('span',{text:'Route only when this turn adds an image; earlier images always become text placeholders.'}))));
   section.append(list.length?h('div',{class:'rows','data-flow':strategy.type==='fusion'?'parallel':'sequence'},list.map((candidate,index)=>candidateRow(candidate,index,list,'vision'))):h('div',{class:'inner-empty',text:'Add a model that accepts images.'}));
   section.append(addRow(list,'vision','＋ Add vision model','add-vision'));
   if(strategy.type==='fusion')section.append(h('div',{class:'grid'},
