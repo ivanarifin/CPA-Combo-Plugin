@@ -554,7 +554,7 @@ func pluginRegistration() registration {
 	formats := []string{"openai", "openai-response", "claude", "gemini", "codex", "antigravity", "interactions"}
 	return registration{
 		SchemaVersion: pluginabi.SchemaVersion,
-		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.8.1", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
+		Metadata:      pluginapi.Metadata{Name: pluginID, Version: "0.8.2", Author: "ivanarifin", GitHubRepository: "https://github.com/ivanarifin/CPA-Combo-Plugin"},
 		Capabilities:  registrationCapabilities{ModelRegistrar: true, ModelRouter: true, Executor: true, ExecutorModelScope: string(pluginapi.ExecutorModelScopeStatic), ExecutorInputFormats: formats, ExecutorOutputFormats: formats, ManagementAPI: true},
 	}
 }
@@ -1760,10 +1760,22 @@ func executeHostModel(ctx context.Context, req rpcExecutorRequest, candidate com
 	return executeHostModelWithHost(ctx, req, candidate, body, callbackID, callHost)
 }
 
+// hostCallerScope keeps the downstream key identity on nested model calls. Request
+// interceptors such as per-key model access policies evaluate the candidate model, so
+// replacing the scope with a plugin label would make every candidate call fail closed.
+func hostCallerScope(req rpcExecutorRequest) string {
+	if scope, ok := req.Metadata[coreexecutor.CallerScopeMetadataKey].(string); ok {
+		if scope = strings.TrimSpace(scope); scope != "" {
+			return scope
+		}
+	}
+	return "plugin-executor"
+}
+
 func executeHostModelWithHost(ctx context.Context, req rpcExecutorRequest, candidate comboCandidate, body []byte, callbackID string, hostCall rpcHostCall) (pluginapi.HostModelExecutionResponse, error) {
 	body = candidateRequestBody(candidate, body)
 	raw, err := hostCall(pluginabi.MethodHostModelExecute, hostModelExecutionRequest{
-		HostModelExecutionRequest: pluginapi.HostModelExecutionRequest{EntryProtocol: req.SourceFormat, ExitProtocol: candidateProtocol(candidate, req.SourceFormat), Model: candidate.Model, ForcedProvider: candidate.Provider, Body: body, Headers: req.Headers, Query: req.Query, Alt: req.Alt, CallerScope: "plugin-executor"},
+		HostModelExecutionRequest: pluginapi.HostModelExecutionRequest{EntryProtocol: req.SourceFormat, ExitProtocol: candidateProtocol(candidate, req.SourceFormat), Model: candidate.Model, ForcedProvider: candidate.Provider, Body: body, Headers: req.Headers, Query: req.Query, Alt: req.Alt, CallerScope: hostCallerScope(req)},
 		HostCallbackID:            callbackID,
 	})
 	if err != nil {
@@ -1883,7 +1895,7 @@ func executeCandidateStreamWithHost(ctx context.Context, req rpcExecutorRequest,
 		return err
 	}
 	raw, err := hostCall(pluginabi.MethodHostModelExecuteStream, hostModelExecutionRequest{
-		HostModelExecutionRequest: pluginapi.HostModelExecutionRequest{EntryProtocol: req.SourceFormat, ExitProtocol: candidateProtocol(candidate, req.SourceFormat), Model: candidate.Model, ForcedProvider: candidate.Provider, Stream: true, Body: request, Headers: req.Headers, Query: req.Query, Alt: req.Alt, CallerScope: "plugin-executor"},
+		HostModelExecutionRequest: pluginapi.HostModelExecutionRequest{EntryProtocol: req.SourceFormat, ExitProtocol: candidateProtocol(candidate, req.SourceFormat), Model: candidate.Model, ForcedProvider: candidate.Provider, Stream: true, Body: request, Headers: req.Headers, Query: req.Query, Alt: req.Alt, CallerScope: hostCallerScope(req)},
 		HostCallbackID:            callbackID,
 	})
 	if err != nil {

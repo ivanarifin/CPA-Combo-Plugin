@@ -887,6 +887,64 @@ func TestExecuteRPCPerformsRealHostCallbackFallback(t *testing.T) {
 	}
 }
 
+func TestHostModelCallsPreserveDownstreamCallerScope(t *testing.T) {
+	const scope = "9d0e6d2c8e6f4b7a1c3d5e7f9012ab34cd56ef7890ab12cd34ef567890abcd12"
+
+	t.Run("non-streaming", func(t *testing.T) {
+		req := rpcExecutorRequest{ExecutorRequest: pluginapi.ExecutorRequest{
+			SourceFormat: "openai",
+			Metadata:     map[string]any{coreexecutor.CallerScopeMetadataKey: " " + scope + " "},
+		}}
+		var got string
+		_, err := executeHostModelWithHost(context.Background(), req, comboCandidate{Model: "candidate"}, []byte(`{"model":"candidate"}`), "callback", func(method string, payload any) (json.RawMessage, error) {
+			if method != pluginabi.MethodHostModelExecute {
+				return nil, fmt.Errorf("host method = %q", method)
+			}
+			got = payload.(hostModelExecutionRequest).CallerScope
+			return json.Marshal(pluginapi.HostModelExecutionResponse{StatusCode: http.StatusOK, Body: []byte(`{}`)})
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != scope {
+			t.Fatalf("caller scope = %q, want %q", got, scope)
+		}
+	})
+
+	t.Run("streaming", func(t *testing.T) {
+		req := rpcExecutorRequest{ExecutorRequest: pluginapi.ExecutorRequest{
+			SourceFormat: "openai",
+			Metadata:     map[string]any{coreexecutor.CallerScopeMetadataKey: scope},
+		}}
+		var got string
+		err := executeCandidateStreamWithHost(context.Background(), req, comboCandidate{Model: "candidate"}, []byte(`{"model":"candidate"}`), "callback", func([]byte) error { return nil }, func(method string, payload any) (json.RawMessage, error) {
+			switch method {
+			case pluginabi.MethodHostModelExecuteStream:
+				got = payload.(hostModelExecutionRequest).CallerScope
+				return json.Marshal(pluginapi.HostModelStreamResponse{StatusCode: http.StatusOK, StreamID: "upstream"})
+			case pluginabi.MethodHostModelStreamRead:
+				return json.Marshal(pluginapi.HostModelStreamReadResponse{Done: true})
+			case pluginabi.MethodHostModelStreamClose:
+				return json.Marshal(map[string]any{})
+			default:
+				return nil, fmt.Errorf("unexpected host method %q", method)
+			}
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got != scope {
+			t.Fatalf("caller scope = %q, want %q", got, scope)
+		}
+	})
+
+	t.Run("falls back without caller identity", func(t *testing.T) {
+		if got := hostCallerScope(rpcExecutorRequest{}); got != "plugin-executor" {
+			t.Fatalf("caller scope = %q", got)
+		}
+	})
+}
+
 func TestExecuteHostModelParsesResponsesAndStructuredCallbackErrors(t *testing.T) {
 	tests := []struct {
 		name        string
